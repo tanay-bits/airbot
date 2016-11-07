@@ -8,7 +8,7 @@
 
 #include <Servo.h>
 #define IMUSERIAL Serial1
-//#define BTSERIAL Serial2
+#define BTSERIAL Serial2
 
 
 /////////////
@@ -64,7 +64,7 @@ void setup() {
   delay(3000);  // Give enough time for Razor to auto-reset
   
   // Initialize serial channels:
-  Serial.begin(9600);
+  BTSERIAL.begin(9600);
 //  IMUSERIAL.begin(58824);
   IMUSERIAL.begin(57600);
   delay(1000);
@@ -85,7 +85,7 @@ void loop() {
   // Wait for user to send something to indicate the connection is ready
   if (!startup)
   {
-    if (Serial.available())
+    if (BTSERIAL.available())
     {
       for (int i=10; i < 75; i = i+5)
       {
@@ -95,8 +95,8 @@ void loop() {
         esc1.write(vals[1]);
       }
       startup = true;
-      Serial.println("Startup successful");
-      while (Serial.available()) {Serial.read();}  // Empty the input buffer
+      BTSERIAL.println("Startup successful");
+      while (BTSERIAL.available()) {BTSERIAL.read();}  // Empty the input buffer
       delay(200);    
     }
   }
@@ -109,38 +109,38 @@ void loop() {
 //      synched = readToken("#SYNCH00\r\n");  // look for synch token
 //    }
     
-    if (Serial.available())
+    if (BTSERIAL.available())
     {
-      char mode = Serial.read();
+      char mode = BTSERIAL.read();
       
       if (mode == 't')
       {
-        Serial.println("Enter motor speeds separated by whitespace:");
-        while (!Serial.available()) {;}  // Block
-        vals[0] = Serial.parseInt();
-        vals[1] = Serial.parseInt();
-        Serial.println("Vals: ");
-        Serial.print(vals[0]);
-        Serial.print(" ");
-        Serial.println(vals[1]);
+        BTSERIAL.println("Enter motor speeds separated by whitespace:");
+        while (!BTSERIAL.available()) {;}  // Block
+        vals[0] = BTSERIAL.parseInt();
+        vals[1] = BTSERIAL.parseInt();
+        BTSERIAL.println("Vals: ");
+        BTSERIAL.print(vals[0]);
+        BTSERIAL.print(" ");
+        BTSERIAL.println(vals[1]);
         esc0.write(vals[0]);
         esc1.write(vals[1]);
-        while (Serial.available()) {Serial.read();}  // Empty the input buffer
+        while (BTSERIAL.available()) {BTSERIAL.read();}  // Empty the input buffer
         delay(10);
       }
       
       else if (mode == 'y')
       {        
-        Serial.println("Enter desired yaw change (deg):");
-        while (!Serial.available()) {;}  // Block
-        int yawChange = Serial.parseInt();
+        BTSERIAL.println("Enter desired yaw change (deg):");
+        while (!BTSERIAL.available()) {;}  // Block
+        int yawChange = BTSERIAL.parseInt();
 
         while (IMUSERIAL.available()) {IMUSERIAL.read();} // VERY CRUCIAL!
         IMUSERIAL.write("#f");  // Request one output frame
         delay(100);             // wait for IMU to write back; VERY CRUCIAL!        
         if (IMUSERIAL.available() >= 12)
         {
-          Serial.println("Frame received from IMU");
+          BTSERIAL.println("Frame received from IMU");
 
           for (int i = 0; i < 12; i++)
           {
@@ -150,8 +150,8 @@ void loop() {
         }
             
         int yawTarget = yawNow + yawChange;
-        Serial.print("Current yaw: "); Serial.println(yawNow);
-        Serial.print("Target yaw: "); Serial.println(yawTarget);
+        BTSERIAL.print("Current yaw: "); BTSERIAL.println(yawNow);
+        BTSERIAL.print("Target yaw: "); BTSERIAL.println(yawTarget);
         float wDel;
         
         // CONTROL LOOP:
@@ -173,10 +173,10 @@ void loop() {
              u.b_angles[i] = IMUSERIAL.read();    
            }
            yawNow = u.f_angles[0];
-           Serial.print("Current yaw: "); Serial.println(yawNow);
-           Serial.print("Target yaw: "); Serial.println(yawTarget);
+           BTSERIAL.print("Current yaw: "); BTSERIAL.println(yawNow);
+           BTSERIAL.print("Target yaw: "); BTSERIAL.println(yawTarget);
          }
-         else {Serial.println("COULD NOT READ YAW");}        
+         else {BTSERIAL.println("COULD NOT READ YAW");}        
         }
       }
   
@@ -196,10 +196,11 @@ void loop() {
 //        u.b_angles[i] = IMUSERIAL.read();    
 //      }
 //      yawNow = u.f_angles[0];
-//      Serial.print("YPR received: ");
-//      Serial.print(u.f_angles[0]); Serial.print(", ");
-//      Serial.print(u.f_angles[1]); Serial.print(", ");
-//      Serial.println(u.f_angles[2]);
+//      BTSERIAL.print("YPR received: ");
+//      BTSERIAL.print(u.f_angles[0]); BTSERIAL.print(", ");
+//      BTSERIAL.print(u.f_angles[1]); BTSERIAL.print(", ");
+//      BTSERIAL.println(u.f_angles[2]);
 //    }
   }
 }
+
