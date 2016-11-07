@@ -10,21 +10,22 @@
 NotebookFileLineBreakTest
 NotebookFileLineBreakTest
 NotebookDataPosition[       158,          7]
-NotebookDataLength[    304994,       5795]
-NotebookOptionsPosition[    303651,       5749]
-NotebookOutlinePosition[    304174,       5769]
-CellTagsIndexPosition[    304131,       5766]
+NotebookDataLength[    305120,       5797]
+NotebookOptionsPosition[    303777,       5751]
+NotebookOutlinePosition[    304300,       5771]
+CellTagsIndexPosition[    304257,       5768]
 WindowFrame->Normal*)
 
 (* Beginning of Notebook Content *)
 Notebook[{
-Cell[TextData[StyleBox["AirBot",
+Cell[TextData[StyleBox["AirBot (v0)",
  FontWeight->"Bold"]], "Text",
  CellChangeTimes->{{3.6587027493924923`*^9, 3.658702788446701*^9}, 
    3.658702833543651*^9, {3.6587028668870277`*^9, 3.658702900138503*^9}, {
    3.658703386625182*^9, 3.65870340742588*^9}, {3.658703829813487*^9, 
    3.658703849605092*^9}, {3.672653494107502*^9, 3.6726535096893663`*^9}, {
-   3.672668640853673*^9, 3.67266864246742*^9}},
+   3.672668640853673*^9, 3.67266864246742*^9}, {3.687458658458562*^9, 
+   3.687458666449905*^9}},
  FontSize->12,
  Background->GrayLevel[0.85]],
 
@@ -1853,7 +1854,7 @@ Cell[BoxData[{
 Cell[BoxData[
  TagBox[
   StyleBox[
-   DynamicModuleBox[{$CellContext`i8$$ = 61, Typeset`show$$ = True, 
+   DynamicModuleBox[{$CellContext`i8$$ = 144, Typeset`show$$ = True, 
     Typeset`bookmarkList$$ = {
     "\"min\"" :> {$CellContext`i8$$ = 1}, 
      "\"max\"" :> {$CellContext`i8$$ = 361}}, Typeset`bookmarkMode$$ = "Menu",
@@ -1873,9 +1874,9 @@ Cell[BoxData[
                 {"\<\"\"\>", 
                  AnimatorBox[Dynamic[$CellContext`i8$$], {1, 361, 1},
                   AnimationRate->Automatic,
-                  AnimationRunTime->16.457273483276367`,
+                  AnimationRunTime->13.43995714187622,
                   AnimationRunning->False,
-                  AnimationTimeIndex->0.8335011461104429,
+                  AnimationTimeIndex->1.985022103247048,
                   
                   AppearanceElements->{
                    "ProgressSlider", "PlayPauseButton", "FasterSlowerButtons",
@@ -1905,6 +1906,7 @@ Cell[BoxData[
              PaneBox[
               TagBox[
                PaneSelectorBox[{1->
+                
                 Graphics3DBox[
                  GeometricTransformation3DBox[{
                    CylinderBox[{{0, 0, 0}, {0, 0, 0.02}}, 0.05], 
@@ -2054,13 +2056,13 @@ Cell[BoxData[
                  GeometricTransformation3DBox[{
                    CylinderBox[{{0, 0, 0}, {0, 0, 0.02}}, 0.05], 
                    Line3DBox[{{0, 0, 0.02}, {0.05, 0, 0.02}}]}, 
-                  NCache[{{
-                    Rational[1, 2] 2^Rational[-1, 2] (1 + 3^Rational[1, 2]), 
-                    Rational[-1, 2] 2^Rational[-1, 2] (-1 + 3^Rational[1, 2]),
-                     0}, {Rational[1, 2] 
-                    2^Rational[-1, 2] (-1 + 3^Rational[1, 2]), Rational[1, 2] 
-                    2^Rational[-1, 2] (1 + 3^Rational[1, 2]), 0}, {0, 0, 
-                    1}}, {{0.9659258262890682, -0.2588190451025207, 0}, {
+                  NCache[{{(Rational[1, 2] 2^Rational[-1, 2]) (1 + 
+                    3^Rational[1, 2]), (Rational[-1, 2] 
+                    2^Rational[-1, 2]) (-1 + 3^Rational[1, 2]), 
+                    0}, {(Rational[1, 2] 2^Rational[-1, 2]) (-1 + 
+                    3^Rational[1, 2]), (Rational[1, 2] 2^Rational[-1, 2]) (1 + 
+                    3^Rational[1, 2]), 0}, {0, 0, 1}}, {{
+                    0.9659258262890682, -0.2588190451025207, 0}, {
                     0.2588190451025207, 0.9659258262890682, 0}, {0, 0, 1}}]]],
                  17->
                 
@@ -2674,13 +2676,13 @@ Cell[BoxData[
                  GeometricTransformation3DBox[{
                    CylinderBox[{{0, 0, 0}, {0, 0, 0.02}}, 0.05], 
                    Line3DBox[{{0, 0, 0.02}, {0.05, 0, 0.02}}]}, 
-                  NCache[{{
-                    Rational[1, 2] 2^Rational[-1, 2] (-1 + 3^Rational[1, 2]), 
-                    Rational[-1, 2] 2^Rational[-1, 2] (1 + 3^Rational[1, 2]), 
-                    0}, {Rational[1, 2] 
-                    2^Rational[-1, 2] (1 + 3^Rational[1, 2]), Rational[1, 2] 
-                    2^Rational[-1, 2] (-1 + 3^Rational[1, 2]), 0}, {0, 0, 
-                    1}}, {{0.2588190451025207, -0.9659258262890682, 0}, {
+                  NCache[{{(Rational[1, 2] 2^Rational[-1, 2]) (-1 + 
+                    3^Rational[1, 2]), (Rational[-1, 2] 2^Rational[-1, 2]) (1 + 
+                    3^Rational[1, 2]), 
+                    0}, {(Rational[1, 2] 2^Rational[-1, 2]) (1 + 
+                    3^Rational[1, 2]), (Rational[1, 2] 2^Rational[-1, 2]) (-1 + 
+                    3^Rational[1, 2]), 0}, {0, 0, 1}}, {{
+                    0.2588190451025207, -0.9659258262890682, 0}, {
                     0.9659258262890682, 0.2588190451025207, 0}, {0, 0, 1}}]]],
                  77->
                 
@@ -2974,12 +2976,12 @@ Cell[BoxData[
                  GeometricTransformation3DBox[{
                    CylinderBox[{{0, 0, 0}, {0, 0, 0.02}}, 0.05], 
                    Line3DBox[{{0, 0, 0.02}, {0.05, 0, 0.02}}]}, 
-                  NCache[{{
-                    Rational[-1, 2] 2^Rational[-1, 2] (-1 + 3^Rational[1, 2]),
-                     Rational[-1, 2] 2^Rational[-1, 2] (1 + 3^Rational[1, 2]),
-                     0}, {Rational[1, 2] 
-                    2^Rational[-1, 2] (1 + 3^Rational[1, 2]), Rational[-1, 2] 
-                    2^Rational[-1, 2] (-1 + 3^Rational[1, 2]), 0}, {0, 0, 
+                  NCache[{{(Rational[-1, 2] 2^Rational[-1, 2]) (-1 + 
+                    3^Rational[1, 2]), (Rational[-1, 2] 2^Rational[-1, 2]) (1 + 
+                    3^Rational[1, 2]), 
+                    0}, {(Rational[1, 2] 2^Rational[-1, 2]) (1 + 
+                    3^Rational[1, 2]), (Rational[-1, 2] 
+                    2^Rational[-1, 2]) (-1 + 3^Rational[1, 2]), 0}, {0, 0, 
                     1}}, {{-0.2588190451025207, -0.9659258262890682, 0}, {
                     0.9659258262890682, -0.2588190451025207, 0}, {0, 0, 
                     1}}]]], 107->
@@ -3596,13 +3598,12 @@ Cell[BoxData[
                  GeometricTransformation3DBox[{
                    CylinderBox[{{0, 0, 0}, {0, 0, 0.02}}, 0.05], 
                    Line3DBox[{{0, 0, 0.02}, {0.05, 0, 0.02}}]}, 
-                  NCache[{{
-                    Rational[-1, 2] 2^Rational[-1, 2] (1 + 3^Rational[1, 2]), 
-                    Rational[-1, 2] 2^Rational[-1, 2] (-1 + 3^Rational[1, 2]),
-                     0}, {Rational[1, 2] 
-                    2^Rational[-1, 2] (-1 + 3^Rational[1, 2]), 
-                    Rational[-1, 2] 2^Rational[-1, 2] (1 + 3^Rational[1, 2]), 
-                    0}, {0, 0, 
+                  NCache[{{(Rational[-1, 2] 2^Rational[-1, 2]) (1 + 
+                    3^Rational[1, 2]), (Rational[-1, 2] 
+                    2^Rational[-1, 2]) (-1 + 3^Rational[1, 2]), 
+                    0}, {(Rational[1, 2] 2^Rational[-1, 2]) (-1 + 
+                    3^Rational[1, 2]), (Rational[-1, 2] 2^Rational[-1, 2]) (1 + 
+                    3^Rational[1, 2]), 0}, {0, 0, 
                     1}}, {{-0.9659258262890682, -0.2588190451025207, 0}, {
                     0.2588190451025207, -0.9659258262890682, 0}, {0, 0, 
                     1}}]]], 167->
@@ -3772,7 +3773,6 @@ Cell[BoxData[
                     1}}, {{-0.9993908270190958, 0.03489949670250097, 
                     0}, {-0.03489949670250097, -0.9993908270190958, 0}, {0, 0,
                      1}}]]], 184->
-                
                 Graphics3DBox[
                  GeometricTransformation3DBox[{
                    CylinderBox[{{0, 0, 0}, {0, 0, 0.02}}, 0.05], 
@@ -3897,13 +3897,12 @@ Cell[BoxData[
                  GeometricTransformation3DBox[{
                    CylinderBox[{{0, 0, 0}, {0, 0, 0.02}}, 0.05], 
                    Line3DBox[{{0, 0, 0.02}, {0.05, 0, 0.02}}]}, 
-                  NCache[{{
-                    Rational[-1, 2] 2^Rational[-1, 2] (1 + 3^Rational[1, 2]), 
-                    Rational[1, 2] 2^Rational[-1, 2] (-1 + 3^Rational[1, 2]), 
-                    0}, {Rational[-1, 2] 
-                    2^Rational[-1, 2] (-1 + 3^Rational[1, 2]), 
-                    Rational[-1, 2] 2^Rational[-1, 2] (1 + 3^Rational[1, 2]), 
-                    0}, {0, 0, 
+                  NCache[{{(Rational[-1, 2] 2^Rational[-1, 2]) (1 + 
+                    3^Rational[1, 2]), (Rational[1, 2] 2^Rational[-1, 2]) (-1 + 
+                    3^Rational[1, 2]), 
+                    0}, {(Rational[-1, 2] 2^Rational[-1, 2]) (-1 + 
+                    3^Rational[1, 2]), (Rational[-1, 2] 2^Rational[-1, 2]) (1 + 
+                    3^Rational[1, 2]), 0}, {0, 0, 
                     1}}, {{-0.9659258262890682, 0.2588190451025207, 
                     0}, {-0.2588190451025207, -0.9659258262890682, 0}, {0, 0, 
                     1}}]]], 197->
@@ -3927,6 +3926,7 @@ Cell[BoxData[
                     1}}, {{-0.9563047559630354, 0.29237170472273677`, 
                     0}, {-0.29237170472273677`, -0.9563047559630354, 0}, {0, 
                     0, 1}}]]], 199->
+                
                 Graphics3DBox[
                  GeometricTransformation3DBox[{
                    CylinderBox[{{0, 0, 0}, {0, 0, 0.02}}, 0.05], 
@@ -4080,6 +4080,7 @@ Cell[BoxData[
                     1}}, {{-0.848048096156426, 0.5299192642332049, 
                     0}, {-0.5299192642332049, -0.848048096156426, 0}, {0, 0, 
                     1}}]]], 214->
+                
                 Graphics3DBox[
                  GeometricTransformation3DBox[{
                    CylinderBox[{{0, 0, 0}, {0, 0, 0.02}}, 0.05], 
@@ -4234,6 +4235,7 @@ Cell[BoxData[
                     1}}, {{-0.6819983600624985, 0.7313537016191705, 
                     0}, {-0.7313537016191705, -0.6819983600624985, 0}, {0, 0, 
                     1}}]]], 229->
+                
                 Graphics3DBox[
                  GeometricTransformation3DBox[{
                    CylinderBox[{{0, 0, 0}, {0, 0, 0.02}}, 0.05], 
@@ -4387,6 +4389,7 @@ Cell[BoxData[
                     1}}, {{-0.4694715627858908, 0.882947592858927, 
                     0}, {-0.882947592858927, -0.4694715627858908, 0}, {0, 0, 
                     1}}]]], 244->
+                
                 Graphics3DBox[
                  GeometricTransformation3DBox[{
                    CylinderBox[{{0, 0, 0}, {0, 0, 0.02}}, 0.05], 
@@ -4436,7 +4439,6 @@ Cell[BoxData[
                     1}}, {{-0.39073112848927377`, 0.9205048534524404, 
                     0}, {-0.9205048534524404, -0.39073112848927377`, 0}, {0, 
                     0, 1}}]]], 249->
-                
                 Graphics3DBox[
                  GeometricTransformation3DBox[{
                    CylinderBox[{{0, 0, 0}, {0, 0, 0.02}}, 0.05], 
@@ -4516,12 +4518,12 @@ Cell[BoxData[
                  GeometricTransformation3DBox[{
                    CylinderBox[{{0, 0, 0}, {0, 0, 0.02}}, 0.05], 
                    Line3DBox[{{0, 0, 0.02}, {0.05, 0, 0.02}}]}, 
-                  NCache[{{
-                    Rational[-1, 2] 2^Rational[-1, 2] (-1 + 3^Rational[1, 2]),
-                     Rational[1, 2] 2^Rational[-1, 2] (1 + 3^Rational[1, 2]), 
-                    0}, {Rational[-1, 2] 
-                    2^Rational[-1, 2] (1 + 3^Rational[1, 2]), Rational[-1, 2] 
-                    2^Rational[-1, 2] (-1 + 3^Rational[1, 2]), 0}, {0, 0, 
+                  NCache[{{(Rational[-1, 2] 2^Rational[-1, 2]) (-1 + 
+                    3^Rational[1, 2]), (Rational[1, 2] 2^Rational[-1, 2]) (1 + 
+                    3^Rational[1, 2]), 
+                    0}, {(Rational[-1, 2] 2^Rational[-1, 2]) (1 + 
+                    3^Rational[1, 2]), (Rational[-1, 2] 
+                    2^Rational[-1, 2]) (-1 + 3^Rational[1, 2]), 0}, {0, 0, 
                     1}}, {{-0.2588190451025207, 0.9659258262890682, 
                     0}, {-0.9659258262890682, -0.2588190451025207, 0}, {0, 0, 
                     1}}]]], 257->
@@ -4830,13 +4832,13 @@ Cell[BoxData[
                  GeometricTransformation3DBox[{
                    CylinderBox[{{0, 0, 0}, {0, 0, 0.02}}, 0.05], 
                    Line3DBox[{{0, 0, 0.02}, {0.05, 0, 0.02}}]}, 
-                  NCache[{{
-                    Rational[1, 2] 2^Rational[-1, 2] (-1 + 3^Rational[1, 2]), 
-                    Rational[1, 2] 2^Rational[-1, 2] (1 + 3^Rational[1, 2]), 
-                    0}, {Rational[-1, 2] 
-                    2^Rational[-1, 2] (1 + 3^Rational[1, 2]), Rational[1, 2] 
-                    2^Rational[-1, 2] (-1 + 3^Rational[1, 2]), 0}, {0, 0, 
-                    1}}, {{0.2588190451025207, 0.9659258262890682, 
+                  NCache[{{(Rational[1, 2] 2^Rational[-1, 2]) (-1 + 
+                    3^Rational[1, 2]), (Rational[1, 2] 2^Rational[-1, 2]) (1 + 
+                    3^Rational[1, 2]), 
+                    0}, {(Rational[-1, 2] 2^Rational[-1, 2]) (1 + 
+                    3^Rational[1, 2]), (Rational[1, 2] 2^Rational[-1, 2]) (-1 + 
+                    3^Rational[1, 2]), 0}, {0, 0, 1}}, {{
+                    0.2588190451025207, 0.9659258262890682, 
                     0}, {-0.9659258262890682, 0.2588190451025207, 0}, {0, 0, 
                     1}}]]], 287->
                 
@@ -5507,13 +5509,13 @@ Cell[BoxData[
                  GeometricTransformation3DBox[{
                    CylinderBox[{{0, 0, 0}, {0, 0, 0.02}}, 0.05], 
                    Line3DBox[{{0, 0, 0.02}, {0.05, 0, 0.02}}]}, 
-                  NCache[{{
-                    Rational[1, 2] 2^Rational[-1, 2] (1 + 3^Rational[1, 2]), 
-                    Rational[1, 2] 2^Rational[-1, 2] (-1 + 3^Rational[1, 2]), 
-                    0}, {Rational[-1, 2] 
-                    2^Rational[-1, 2] (-1 + 3^Rational[1, 2]), Rational[1, 2] 
-                    2^Rational[-1, 2] (1 + 3^Rational[1, 2]), 0}, {0, 0, 
-                    1}}, {{0.9659258262890682, 0.2588190451025207, 
+                  NCache[{{(Rational[1, 2] 2^Rational[-1, 2]) (1 + 
+                    3^Rational[1, 2]), (Rational[1, 2] 2^Rational[-1, 2]) (-1 + 
+                    3^Rational[1, 2]), 
+                    0}, {(Rational[-1, 2] 2^Rational[-1, 2]) (-1 + 
+                    3^Rational[1, 2]), (Rational[1, 2] 2^Rational[-1, 2]) (1 + 
+                    3^Rational[1, 2]), 0}, {0, 0, 1}}, {{
+                    0.9659258262890682, 0.2588190451025207, 
                     0}, {-0.2588190451025207, 0.9659258262890682, 0}, {0, 0, 
                     1}}]]], 347->
                 
@@ -5768,34 +5770,34 @@ CellTagsIndex->{}
 *)
 (*NotebookFileOutline
 Notebook[{
-Cell[558, 20, 446, 8, 92, "Text"],
-Cell[1007, 30, 405, 7, 61, "Input"],
+Cell[558, 20, 501, 9, 92, "Text"],
+Cell[1062, 31, 405, 7, 61, "Input"],
 Cell[CellGroupData[{
-Cell[1437, 41, 2249, 49, 569, "Input"],
-Cell[3689, 92, 238, 4, 61, "Output"],
-Cell[3930, 98, 224, 4, 61, "Output"],
-Cell[4157, 104, 235, 4, 61, "Output"]
+Cell[1492, 42, 2249, 49, 569, "Input"],
+Cell[3744, 93, 238, 4, 61, "Output"],
+Cell[3985, 99, 224, 4, 61, "Output"],
+Cell[4212, 105, 235, 4, 61, "Output"]
 }, Open  ]],
 Cell[CellGroupData[{
-Cell[4429, 113, 3840, 100, 382, "Input"],
-Cell[8272, 215, 5504, 102, 494, "Output"],
-Cell[13779, 319, 13968, 241, 500, "Output"],
-Cell[27750, 562, 23259, 394, 499, "Output"],
-Cell[51012, 958, 23270, 392, 488, "Output"]
+Cell[4484, 114, 3840, 100, 382, "Input"],
+Cell[8327, 216, 5504, 102, 466, "Output"],
+Cell[13834, 320, 13968, 241, 472, "Output"],
+Cell[27805, 563, 23259, 394, 471, "Output"],
+Cell[51067, 959, 23270, 392, 460, "Output"]
 }, Open  ]],
 Cell[CellGroupData[{
-Cell[74319, 1355, 280, 6, 61, "Input"],
-Cell[74602, 1363, 237, 3, 89, "Output"]
+Cell[74374, 1356, 280, 6, 61, "Input"],
+Cell[74657, 1364, 237, 3, 61, "Output"]
 }, Open  ]],
 Cell[CellGroupData[{
-Cell[74876, 1371, 4435, 112, 296, "Input"],
-Cell[79314, 1485, 6827, 124, 487, "Output"],
-Cell[86144, 1611, 8639, 154, 495, "Output"]
+Cell[74931, 1372, 4435, 112, 296, "Input"],
+Cell[79369, 1486, 6827, 124, 459, "Output"],
+Cell[86199, 1612, 8639, 154, 467, "Output"]
 }, Open  ]],
-Cell[94798, 1768, 1508, 35, 647, "Input"],
+Cell[94853, 1769, 1508, 35, 647, "Input"],
 Cell[CellGroupData[{
-Cell[96331, 1807, 1769, 43, 218, "Input"],
-Cell[98103, 1852, 205532, 3894, 706, "Output"]
+Cell[96386, 1808, 1769, 43, 218, "Input"],
+Cell[98158, 1853, 205603, 3895, 678, "Output"]
 }, Open  ]]
 }
 ]
