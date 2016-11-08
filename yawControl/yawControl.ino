@@ -33,8 +33,9 @@ union u_tag {
 // HELPER FUNCTIONS //
 //////////////////////
 
-bool readToken(char* token) {  
-  while (IMUSERIAL.available()) {IMUSERIAL.read();} // Clear input buffer  
+// Only needed if continuous output streaming is on
+bool readToken(char* token) {
+  while (IMUSERIAL.available()) {IMUSERIAL.read();} // Clear input buffer
   
   IMUSERIAL.write("#s00"); // Request synch token
   delay(500);
@@ -47,10 +48,24 @@ bool readToken(char* token) {
   return true;
 }
 
+// Limits motor speeds to 0-150
 int saturateSpeed(float s) {
   if (s > 150) {return 150;}
   else if (s < 0) {return 0;}
   else {return s;}
+}
+
+// Corrects for overflow in target yaw calculation
+int valid_yaw(int x) {
+  if (x >= 180) {
+    int overflow = x - 180;
+    x = -(180 - overflow);
+  }
+  else if (x <= -180) {
+    int overflow = x + 180;
+    x = 180 - overflow;
+  }
+  return x;
 }
 
 
@@ -100,7 +115,24 @@ void loop() {
   }
 
   if (startup)
-  {    
+  {
+    // As default, print out current yaw
+    while (IMUSERIAL.available()) {IMUSERIAL.read();}  // Clear input buffer
+    IMUSERIAL.write("#f");  // Request one output frame
+    while (IMUSERIAL.available() < 4) {;}  // Block until 4 bytes are received
+    for (int i = 0; i < 4; i++)  // Read yaw angle
+    {
+      u.b_angles[i] = IMUSERIAL.read();    
+    }
+    yawNow = u.f_angles[0];
+    
+    out_counter += 1;
+    if (out_counter % PRINTAFTER == 0)
+    {
+      BTSERIAL.print("Current yaw: "); BTSERIAL.println(yawNow);
+    }
+
+    // User modes
     if (Serial.available())
     {
       char mode = Serial.read();
@@ -120,6 +152,11 @@ void loop() {
         while (Serial.available()) {Serial.read();}  // Empty the input buffer
         delay(10);
       }
+
+      else if (mode == 'q')
+      {
+        startup = false;
+      }
       
       else if (mode == 'y')
       {        
@@ -136,7 +173,7 @@ void loop() {
         }
         yawNow = u.f_angles[0];
                  
-        int yawTarget = yawNow + yawChange;
+        int yawTarget = valid_yaw(yawNow + yawChange);
         Serial.print("Current yaw: "); Serial.println(yawNow);
         Serial.print("Target yaw: "); Serial.println(yawTarget);
 
@@ -169,21 +206,6 @@ void loop() {
           }
         }        
       }
-    }
-    
-    while (IMUSERIAL.available()) {IMUSERIAL.read();}  // Clear input buffer
-    IMUSERIAL.write("#f");  // Request one output frame
-    while (IMUSERIAL.available() < 4) {;}  // Block until 4 bytes are received
-    for (int i = 0; i < 4; i++)  // Read yaw angle
-    {
-      u.b_angles[i] = IMUSERIAL.read();    
-    }
-    yawNow = u.f_angles[0];
-    
-    out_counter += 1;
-    if (out_counter % PRINTAFTER == 0)
-    {
-      BTSERIAL.print("Current yaw: "); BTSERIAL.println(yawNow);
     }
   }
 }
