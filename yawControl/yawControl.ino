@@ -8,19 +8,19 @@
 
 #include <Servo.h>
 #define IMUSERIAL Serial1
-//#define BTSERIAL Serial2
-
+#define PRINTAFTER 20
 
 /////////////
 // GLOBALS //
 /////////////
 
-Servo esc0, esc1;         // esc0 - CW wheel, esc1 - CCW wheel 
+Servo esc0, esc1;                         // esc0 - CW wheel, esc1 - CCW wheel 
 bool startup = false;
 bool synched = false;
 float yawTol = 10, yawNow;
 float Kp = 1, Ki = 0, Kd = 0, Awy = 1;    // yawdot = Awy * (wu - wnom)
-int vals[2] = {0, 0};     // w0 and w1 (motor speeds)
+int vals[2] = {0, 0};                     // w0 and w1 (motor speeds)
+unsigned short out_counter = 0;           // counter for when to print
 
 // Union data structure to save incoming byte array as floats representing angles (deg):
 union u_tag {
@@ -141,6 +141,7 @@ void loop() {
         Serial.print("Target yaw: "); Serial.println(yawTarget);
 
         float wDel;
+        unsigned short ctrl_counter = 0;
 
         // CONTROL LOOP:
         while (abs(yawTarget - yawNow) > yawTol)
@@ -160,10 +161,29 @@ void loop() {
           }
           yawNow = u.f_angles[0];
 
-          Serial.print("Current yaw: "); Serial.println(yawNow);
-          Serial.print("Target yaw: "); Serial.println(yawTarget);
+          ctrl_counter += 1;
+          if (ctrl_counter % PRINTAFTER == 0)
+          {
+            BTSERIAL.print("Current yaw: "); BTSERIAL.println(yawNow);
+            BTSERIAL.print("Target yaw: "); BTSERIAL.println(yawTarget);
+          }
         }        
       }
+    }
+    
+    while (IMUSERIAL.available()) {IMUSERIAL.read();}  // Clear input buffer
+    IMUSERIAL.write("#f");  // Request one output frame
+    while (IMUSERIAL.available() < 4) {;}  // Block until 4 bytes are received
+    for (int i = 0; i < 4; i++)  // Read yaw angle
+    {
+      u.b_angles[i] = IMUSERIAL.read();    
+    }
+    yawNow = u.f_angles[0];
+    
+    out_counter += 1;
+    if (out_counter % PRINTAFTER == 0)
+    {
+      BTSERIAL.print("Current yaw: "); BTSERIAL.println(yawNow);
     }
   }
 }
