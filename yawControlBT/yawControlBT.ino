@@ -22,10 +22,10 @@ float yawTol = 10, yawNow;
 float Kp = 1, Ki = 0, Kd = 0, Awy = 1;    // yawdot = Awy * (wu - wnom)
 int vals[2] = {0, 0};     // w0 and w1 (motor speeds)
 
-// Union data struction to save incoming byte array as floats representing angles (deg):
+// Union data structure to save incoming byte array as floats representing angles (deg):
 union u_tag {
-  byte b_angles[12];
-  float f_angles[3];
+  byte b_angles[4];
+  float f_angles[1];
 } u; 
 
 
@@ -34,14 +34,12 @@ union u_tag {
 //////////////////////
 
 bool readToken(char* token) {
-  // Clear input buffer:
-//  IMUSERIAL.clear();       
-  while (IMUSERIAL.available()) {IMUSERIAL.read();}
+  while (IMUSERIAL.available()) {IMUSERIAL.read();} // Clear input buffer
   
   IMUSERIAL.write("#s00"); // Request synch token
   delay(500);
   // Check if incoming bytes match token
-  for (int i = 0; i < (sizeof(token) - (unsigned)1); i++)
+  for (unsigned int i = 0; i < (sizeof(token) - (unsigned)1); i++)
     {
       if (IMUSERIAL.read() != token[i])
         return false;
@@ -138,11 +136,11 @@ void loop() {
         while (IMUSERIAL.available()) {IMUSERIAL.read();} // VERY CRUCIAL!
         IMUSERIAL.write("#f");  // Request one output frame
         delay(100);             // wait for IMU to write back; VERY CRUCIAL!        
-        if (IMUSERIAL.available() >= 12)
+        if (IMUSERIAL.available() >= 4)
         {
           BTSERIAL.println("Frame received from IMU");
 
-          for (int i = 0; i < 12; i++)
+          for (int i = 0; i < 4; i++)
           {
             u.b_angles[i] = IMUSERIAL.read();    
           }
@@ -166,9 +164,9 @@ void loop() {
          while (IMUSERIAL.available()) {IMUSERIAL.read();} // VERY CRUCIAL!
          IMUSERIAL.write("#f");  // Request one output frame
          delay(100);             // wait for IMU to write back; VERY CRUCIAL!          
-         if (IMUSERIAL.available() >= 12)
+         if (IMUSERIAL.available() >= 4)
          {
-           for (int i = 0; i < 12; i++)
+           for (int i = 0; i < 4; i++)
            {
              u.b_angles[i] = IMUSERIAL.read();    
            }
@@ -189,9 +187,9 @@ void loop() {
 //      }
     }
           
-//    if (IMUSERIAL.available() >= 12)
+//    if (IMUSERIAL.available() >= 4)
 //    {
-//      for (int i = 0; i < 12; i++)
+//      for (int i = 0; i < 4; i++)
 //      {
 //        u.b_angles[i] = IMUSERIAL.read();    
 //      }
