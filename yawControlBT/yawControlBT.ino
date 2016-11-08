@@ -15,12 +15,12 @@
 // GLOBALS //
 /////////////
 
-Servo esc0, esc1;         // esc0 - CW wheel, esc1 - CCW wheel 
+Servo esc0, esc1;                         // esc0 - CW wheel, esc1 - CCW wheel 
 bool startup = false;
 bool synched = false;
 float yawTol = 10, yawNow;
 float Kp = 1, Ki = 0, Kd = 0, Awy = 1;    // yawdot = Awy * (wu - wnom)
-int vals[2] = {0, 0};     // w0 and w1 (motor speeds)
+int vals[2] = {0, 0};                     // w0 and w1 (motor speeds)
 
 // Union data structure to save incoming byte array as floats representing angles (deg):
 union u_tag {
@@ -33,6 +33,7 @@ union u_tag {
 // HELPER FUNCTIONS //
 //////////////////////
 
+// Only needed if continuous output streaming is on:
 bool readToken(char* token) {
   while (IMUSERIAL.available()) {IMUSERIAL.read();} // Clear input buffer
   
