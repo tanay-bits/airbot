@@ -33,10 +33,8 @@ union u_tag {
 // HELPER FUNCTIONS //
 //////////////////////
 
-bool readToken(char* token) {
-  // Clear input buffer:
-//  IMUSERIAL.clear();       
-  while (IMUSERIAL.available()) {IMUSERIAL.read();}
+bool readToken(char* token) {  
+  while (IMUSERIAL.available()) {IMUSERIAL.read();} // Clear input buffer  
   
   IMUSERIAL.write("#s00"); // Request synch token
   delay(500);
@@ -65,9 +63,9 @@ void setup() {
   
   // Initialize serial channels:
   Serial.begin(9600);
-//  IMUSERIAL.begin(58824);
-  IMUSERIAL.begin(57600);
-  delay(1000);
+  IMUSERIAL.begin(58824);
+  // IMUSERIAL.begin(57600);
+  delay(500);
   
   // Arm the ESC's:
   esc0.attach(16);
@@ -102,13 +100,7 @@ void loop() {
   }
 
   if (startup)
-  {
-    // Synch with Razor:
-//    while(!synched)
-//    {
-//      synched = readToken("#SYNCH00\r\n");  // look for synch token
-//    }
-    
+  {    
     if (Serial.available())
     {
       char mode = Serial.read();
@@ -135,71 +127,43 @@ void loop() {
         while (!Serial.available()) {;}  // Block
         int yawChange = Serial.parseInt();
 
-        while (IMUSERIAL.available()) {IMUSERIAL.read();} // VERY CRUCIAL!
+        while (IMUSERIAL.available()) {IMUSERIAL.read();}  // Clear input buffer
         IMUSERIAL.write("#f");  // Request one output frame
-        delay(100);             // wait for IMU to write back; VERY CRUCIAL!        
-        if (IMUSERIAL.available() >= 4)
+        while (IMUSERIAL.available() < 4) {;}  // Block until 4 bytes are received
+        for (int i = 0; i < 4; i++)  // Read yaw angle
         {
-          Serial.println("Frame received from IMU");
+          u.b_angles[i] = IMUSERIAL.read();    
+        }
+        yawNow = u.f_angles[0];
+                 
+        int yawTarget = yawNow + yawChange;
+        Serial.print("Current yaw: "); Serial.println(yawNow);
+        Serial.print("Target yaw: "); Serial.println(yawTarget);
 
+        float wDel;
+
+        // CONTROL LOOP:
+        while (abs(yawTarget - yawNow) > yawTol)
+        {
+          wDel = (Kp/Awy) * (yawTarget - yawNow);   // Delta of w
+          vals[0] = saturateSpeed(vals[0] - wDel);  // New speed for motor 0
+          vals[1] = saturateSpeed(vals[1] + wDel);  // New speed for motor 1
+          esc0.write(vals[0]);
+          esc1.write(vals[1]);
+
+          while (IMUSERIAL.available()) {IMUSERIAL.read();}  // Clear input buffer
+          IMUSERIAL.write("#f");  // Request one output frame
+          while (IMUSERIAL.available() < 4) {;}  // Block until 4 bytes are received
           for (int i = 0; i < 4; i++)
           {
             u.b_angles[i] = IMUSERIAL.read();    
           }
           yawNow = u.f_angles[0];
-        }
-            
-        int yawTarget = yawNow + yawChange;
-        Serial.print("Current yaw: "); Serial.println(yawNow);
-        Serial.print("Target yaw: "); Serial.println(yawTarget);
-        float wDel;
-        
-        // CONTROL LOOP:
-        while (abs(yawTarget - yawNow) > yawTol)
-        {
-         wDel = (Kp/Awy) * (yawTarget - yawNow);   // Delta of w
-         vals[0] = saturateSpeed(vals[0] - wDel);  // New speed for motor 0
-         vals[1] = saturateSpeed(vals[1] + wDel);  // New speed for motor 1
-         esc0.write(vals[0]);
-         esc1.write(vals[1]);
 
-         while (IMUSERIAL.available()) {IMUSERIAL.read();} // VERY CRUCIAL!
-         IMUSERIAL.write("#f");  // Request one output frame
-         delay(100);             // wait for IMU to write back; VERY CRUCIAL!          
-         if (IMUSERIAL.available() >= 4)
-         {
-           for (int i = 0; i < 4; i++)
-           {
-             u.b_angles[i] = IMUSERIAL.read();    
-           }
-           yawNow = u.f_angles[0];
-           Serial.print("Current yaw: "); Serial.println(yawNow);
-           Serial.print("Target yaw: "); Serial.println(yawTarget);
-         }
-         else {Serial.println("COULD NOT READ YAW");}        
-        }
+          Serial.print("Current yaw: "); Serial.println(yawNow);
+          Serial.print("Target yaw: "); Serial.println(yawTarget);
+        }        
       }
-  
-      // Synch with Razor again:
-//      IMUSERIAL.write("#o1");  // Turn on continuous streaming output
-//      synched = false;
-//      while(!synched)
-//      {
-//        synched = readToken("#SYNCH00\r\n");  // Look for synch token
-//      }
     }
-          
-//    if (IMUSERIAL.available() >= 12)
-//    {
-//      for (int i = 0; i < 12; i++)
-//      {
-//        u.b_angles[i] = IMUSERIAL.read();    
-//      }
-//      yawNow = u.f_angles[0];
-//      Serial.print("YPR received: ");
-//      Serial.print(u.f_angles[0]); Serial.print(", ");
-//      Serial.print(u.f_angles[1]); Serial.print(", ");
-//      Serial.println(u.f_angles[2]);
-//    }
   }
 }
