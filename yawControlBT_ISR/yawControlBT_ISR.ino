@@ -36,12 +36,12 @@ IntervalTimer myTimer;
 volatile Mode_datatype mode;                       // declare global var which is the current mode 
 volatile bool startup = false;
 volatile bool synched = false;
-volatile float yawTol = 10;                        // yaw error tolerance
-volatile float yawNow = 0;                         // current (sensed) yaw
-volatile int yawTarget = 0;                        // target yaw position
-volatile float Kp = 1, Ki = 0, Kd = 0, Awy = 1;    // yawdot = Awy * (wu - wnom)
+// volatile int yawTol = 10;                          // yaw error tolerance
+volatile int yawNow = 0;                           // current (sensed) yaw
+int yawTarget = 0;                                 // target yaw position
+volatile float Kp = 0.01, Ki = 0, Kd = 0;          // yawdot = Awy * (wu - wnom)
 volatile float control_sig = 0;                    // yaw control signal (~ motor speed change)
-volatile int e_prev = 0;                           // previous yaw error (for D control)
+volatile int e_yaw_prev = 0;                       // previous yaw error (for D control)
 volatile int Eint = 0;                             // integral (sum) of control error
 volatile int vals[2] = {0, 0};                     // w0 and w1 (motor speeds)
 
@@ -50,7 +50,20 @@ volatile int vals[2] = {0, 0};                     // w0 and w1 (motor speeds)
 // HELPER FUNCTIONS //
 //////////////////////
 
-float read_yaw(void) {
+// Maps yaw from (-180:180) system to (0:360) system
+int correct_yaw(float x) {
+  if (x < 0)
+  {
+    x = x + 360;
+  }
+  else if (x > 360)
+  {
+    x = x - 360;
+  }
+  return (int)x;
+}
+
+int read_yaw(void) {
   IMUserial_clear();  // Clear input buffer
   IMUSERIAL.write("#f");  // Request one output frame
   while (IMUSERIAL.available() < 4) {;}  // Block until 4 bytes are received
@@ -58,7 +71,26 @@ float read_yaw(void) {
   {
     u.b_angle[i] = IMUSERIAL.read();    
   }
-  return u.f_angle[0];
+  return correct_yaw(u.f_angle[0]);
+}
+
+int calc_error(int diff) {
+  if (diff > 180)
+  {
+    diff = diff - 360;
+  }
+  else if (diff < -180)
+  {
+    diff = 360 + diff;
+  }
+  return diff;
+}
+
+// Limits motor speeds to 0-150
+int saturateSpeed(float s) {
+  if (s > 150) {return 150;}
+  else if (s < 0) {return 0;}
+  else {return s;}
 }
 
 void BTserial_clear(void) {
@@ -100,30 +132,10 @@ bool readToken(char* token) {
   return true;
 }
 
-// Limits motor speeds to 0-150
-int saturateSpeed(float s) {
-  if (s > 150) {return 150;}
-  else if (s < 0) {return 0;}
-  else {return s;}
-}
 
-// Corrects for overflow in target yaw calculation
-int valid_yaw(int x) {
-  if (x >= 180) {
-    int overflow = x - 180;
-    x = -(180 - overflow);
-  }
-  else if (x <= -180) {
-    int overflow = x + 180;
-    x = 180 - overflow;
-  }
-  return x;
-}
-
-
-///////////////////////
-// INTERRUPT ROUTINE //
-///////////////////////
+/////////
+// ISR //
+/////////
 
 void controller(void)
 {  
@@ -149,18 +161,18 @@ void controller(void)
     {
       // calculate control error and integral of error
       yawNow = read_yaw();
-      e_yaw = yawTarget - yawNow;
+      e_yaw = calc_error(yawTarget - yawNow);
       Eint = Eint + e_yaw;
 
       // calculate control signal and send to actuator
-      control_sig = (Kp/Awy) * e_yaw;  // ~ motor speed change
+      control_sig = Kp*e_yaw + Ki*Eint + Kd*(e_yaw - e_yaw_prev);  // ~ motor speed change
       vals[0] = saturateSpeed(vals[0] - control_sig);  // new speed for motor 0
       vals[1] = saturateSpeed(vals[1] + control_sig);  // new speed for motor 1
       esc0.write(vals[0]);
       esc1.write(vals[1]);
 
-      // update previous error for integral calculation
-      e_prev = e_yaw;
+      // update previous error for derivative calculation
+      e_yaw_prev = e_yaw;
 
       if (BTSERIAL.available())
       {
@@ -342,14 +354,14 @@ void loop() {
           noInterrupts();
           delay(1000);
           unsigned int out_counter = 0;  // counter for when to print
-          e_prev = 0;
+          e_yaw_prev = 0;
           Eint = 0;
           control_sig = 0;
           BTSERIAL.println("Enter desired yaw change (deg):");
           BTserial_block();
           int yawChange = BTSERIAL.parseInt();
           yawNow = read_yaw();                   
-          yawTarget = valid_yaw(yawNow + yawChange);          
+          yawTarget = yawNow + yawChange;          
           BTSERIAL.print("Current yaw: "); BTSERIAL.println(yawNow);
           BTSERIAL.print("Target yaw: "); BTSERIAL.println(yawTarget);
           set_mode(HOLD);
