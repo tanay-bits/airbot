@@ -41,10 +41,10 @@ IntervalTimer myTimer;
 volatile Mode_datatype mode;                       // declare global var which is the current mode 
 volatile bool startup = false;
 volatile bool synched = false;
-volatile int yawTol = 10;                          // yaw error tolerance
+volatile int yawTol = 5;                          // yaw error tolerance
 volatile int yawNow = 0;                           // current (sensed) yaw
 volatile int yawTarget = 0;                        // target yaw position
-volatile float Kp = 100, Ki = 0, Kd = 0;           // yawdot = Awy * (wu - wnom)
+volatile float Kp = 500, Ki = 100, Kd = 0;           // yawdot = Awy * (wu - wnom)
 volatile float control_sig = 0;                    // yaw control signal (~ motor speed change)
 volatile int e_yaw_prev = 0;                       // previous yaw error (for D control)
 volatile int Eint = 0;                             // integral (sum) of control error
@@ -96,13 +96,13 @@ int calc_error(int diff) {
 // Limits motor speeds to 0-150
 int saturateSpeed(float s) {
   if (s > 150) {return 150;}
-  else if (s < 20) {return 20;}
+  else if (s < 0) {return 0;}
   else {return s;}
 }
 
 // calculate control signal and send to actuator, if error outside deadband
 void calc_send_control(int e_yaw) {
-  if (e_yaw > yawTol)
+  if (abs(e_yaw) > yawTol)
   {
     control_sig = Kp*e_yaw + Ki*Eint + Kd*(e_yaw - e_yaw_prev);  // ~ motor speed change
     vals[0] = saturateSpeed(vals[0] - control_sig);  // new speed for motor 0
@@ -394,8 +394,9 @@ void loop() {
             out_counter = out_counter + 1;
             if (out_counter % PRINTAFTER == 0)
             {
-              BTSERIAL.print("Current yaw: "); BTSERIAL.println(yawNow);
-              BTSERIAL.print("Target yaw: "); BTSERIAL.println(yawTarget);
+              // BTSERIAL.print("Current yaw: "); BTSERIAL.println(yawNow);
+              // BTSERIAL.print("Target yaw: "); BTSERIAL.println(yawTarget);
+              BTSERIAL.println(Eint);
             }
           }
           BTSERIAL.println("You're in IDLE mode");
