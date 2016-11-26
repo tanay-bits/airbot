@@ -11,18 +11,14 @@
 #define BTSERIAL Serial2
 #define LEDPIN 13
 const unsigned short PRINTAFTER = 20000;
-const int MAX_SPEED = 150;    // max ESC write value
+const int MAX_SPEED = 160;    // max ESC write value
 const int CONTROL_PERIOD_MS = 22;
 const int CONTROL_FREQ = 45;  // approximate control frequency (Hz)
-const int EINT_CAP = 50000;   // execute slow retraction if Eint >= EINT_CAP
 
 
 /////////////
 // GLOBALS //
 /////////////
-
-// For serial data parsing in trajectory following mode
-byte ind = 0;                    // index of integer array where time or ang data is stored
 
 // Union data structure to save incoming byte array as floats representing an angle (deg):
 union u_tag {
@@ -43,13 +39,14 @@ IntervalTimer myTimer;
 volatile Mode_datatype mode;                       // declare global var which is the current mode 
 volatile bool startup = false;
 volatile bool synched = false;
-volatile int yawTol = 10;                          // yaw error tolerance
+volatile int yawTol = 0;                          // yaw error tolerance
 volatile int yawNow = 0;                           // current (sensed) yaw
 volatile int yawTarget = 0;                        // target yaw position
-volatile float Kp = 10, Ki = 0, Kd = 0.01;           // yawdot = Awy * (wu - wnom)
+volatile float Kp = 0.1, Ki = 0, Kd = 2;           // yawdot = Awy * (wu - wnom)
 volatile float control_sig = 0;                    // yaw control signal (~ motor speed change)
 volatile int e_yaw_prev = 0;                       // previous yaw error (for D control)
 volatile int Eint = 0;                             // integral (sum) of control error
+volatile int EINT_CAP = 50000;                     // execute slow retraction if Eint >= EINT_CAP
 volatile int vals[2] = {0, 0};                     // w0 and w1 (motor speeds)
 volatile int REFtraj[500];                         // stores reference trajectory
 volatile int ctr = 0;                              // counter to step through REFtraj array
@@ -85,10 +82,8 @@ void controller(void)
       // calculate control error and integral of error
       yawNow = read_yaw();
       e_yaw = calc_error(yawTarget - yawNow);
-      if (abs(e_yaw) > yawTol)
-      {
-        Eint = Eint + e_yaw;
-      }
+      Eint = Eint + e_yaw;
+      
       
       // calculate control signal and send to actuator, if error outside deadband
       calc_send_control(e_yaw);
@@ -105,27 +100,24 @@ void controller(void)
 
     case TRACK:
     {
-      yawNow = read_yaw();
-      yawTarget = REFtraj[ctr];
-      e_yaw = calc_error(yawTarget - yawNow);
-      if (abs(e_yaw) > yawTol)
-      {
-        Eint = Eint + e_yaw;
-      }
-
-      // calculate control signal and send to actuator, if error outside deadband
-      calc_send_control(e_yaw);
-
-      // update previous error for derivative calculation
-      e_yaw_prev = e_yaw;
-
-      ctr++;
-      if (ctr == refSize)
-      {
-        yawTarget = REFtraj[refSize-1];  // set last ref as target for HOLD
-        ctr = 0;  // reset counter
-        set_mode(HOLD);
-      }
+//      yawNow = read_yaw();
+//      yawTarget = REFtraj[ctr];
+//      e_yaw = calc_error(yawTarget - yawNow);
+//      Eint = Eint + e_yaw;
+//
+//      // calculate control signal and send to actuator, if error outside deadband
+//      calc_send_control(e_yaw);
+//
+//      // update previous error for derivative calculation
+//      e_yaw_prev = e_yaw;
+//
+//      ctr++;
+//      if (ctr == refSize)
+//      {
+//        yawTarget = REFtraj[refSize-1];  // set last ref as target for HOLD
+//        ctr = 0;  // reset counter
+//        set_mode(HOLD);
+//      }
       break;
     }
 
@@ -176,20 +168,11 @@ void loop() {
   {
     if (BTSERIAL.available())
     {
-      for (int i=10; i <= 75; i = i+1)
-      {
-        vals[0] = i;
-        vals[1] = i;
-        esc0.write(vals[0]);
-        esc1.write(vals[1]);
-//        delay(100);
-      }
       startup = true;
-      BTSERIAL.println("Startup successful");
+      BTSERIAL.println("Start up successful");
       BTSERIAL.println();
       digitalWrite(LEDPIN, LOW);  // turn off LED to indicate startup
       BTserial_clear();  // Empty the input buffer
-      delay(200);    
     }
   }
 
@@ -220,11 +203,41 @@ void loop() {
           break;
         }
 
-        // get current mode
+        // Equilibrium mode (both motors ramp up to MAX_SPEED/2)
+        case 'e':
+        {         
+          for (int i=10; i <= MAX_SPEED/2; i = i+1)
+          {
+            vals[0] = i;
+            vals[1] = i;
+            esc0.write(vals[0]);
+            esc1.write(vals[1]);
+//            delay(50);  // to slow down the ramp-up
+          }
+          BTSERIAL.println("Ramp-up to equilibrium complete.");
+          BTSERIAL.println();   
+          break;
+        }
+        
+        // get parameters - PID gains, yawTol, EINT_CAP, current mode
         case '?':                      
         {
           noInterrupts();
           
+          BTSERIAL.println("PID gains are:");
+          BTSERIAL.println(Kp);
+          BTSERIAL.println(Ki);
+          BTSERIAL.println(Kd);
+          BTSERIAL.println();
+
+          BTSERIAL.println("yawTol is:");
+          BTSERIAL.println(yawTol);
+          BTSERIAL.println();
+
+          BTSERIAL.println("EINT_CAP is:");
+          BTSERIAL.println(EINT_CAP);
+          BTSERIAL.println();
+
           BTSERIAL.print("You are in ");
           switch (get_mode())
           {
@@ -259,21 +272,6 @@ void loop() {
           interrupts();
           break;
         }
-        
-        // get PID gains
-        case 'g':                      
-        {
-          noInterrupts();
-          
-          BTSERIAL.println("PID gains are:");
-          BTSERIAL.println(Kp);
-          BTSERIAL.println(Ki);
-          BTSERIAL.println(Kd);
-          BTSERIAL.println();
-          
-          interrupts();
-          break;
-        }
 
         // set PID gains
         case 's':                      
@@ -297,6 +295,40 @@ void loop() {
           BTSERIAL.println(Kp);
           BTSERIAL.println(Ki);
           BTSERIAL.println(Kd);
+          BTSERIAL.println();
+          
+          interrupts();
+          break;
+        }
+
+        // set yawTol
+        case 'b':                      
+        {
+          noInterrupts();
+          delay(1000);
+
+          BTSERIAL.println("Enter desired yawTol:");
+          BTserial_block();
+          yawTol = BTSERIAL.parseInt();
+          BTSERIAL.println("New yawTol is:");
+          BTSERIAL.println(yawTol);
+          BTSERIAL.println();
+          
+          interrupts();
+          break;
+        }
+
+        // set EINT_CAP for triggering retraction
+        case 'c':                      
+        {
+          noInterrupts();
+          delay(1000);
+
+          BTSERIAL.println("Enter desired EINT_CAP:");
+          BTserial_block();
+          EINT_CAP = BTSERIAL.parseInt();
+          BTSERIAL.println("New EINT_CAP is:");
+          BTSERIAL.println(EINT_CAP);
           BTSERIAL.println();
           
           interrupts();
@@ -387,79 +419,79 @@ void loop() {
           break;
         }
 
-        case 'f':                      // Follow reference trajectory
-        {
-          noInterrupts();
-          delay(1000);
-
-          // reset PID parameters
-          e_yaw_prev = 0;
-          Eint = 0;
-          control_sig = 0;
-          
-          // take reference trajectory from user
-          int refTimes[3], refAngs[3];
-          refTimes[0] = 0;
-          BTSERIAL.println("Time 1 is 0. Enter time 2:");
-          BTserial_block();
-          refTimes[1] = BTSERIAL.parseInt();
-          BTSERIAL.println("Enter time 3:");
-          BTserial_block();
-          refTimes[2] = BTSERIAL.parseInt();
-          BTSERIAL.println("Target times:");
-          for (byte i = 0; i < 3; i++)
-          {
-            BTSERIAL.println(refTimes[i]);
-          }
-          BTSERIAL.println("Enter angle 1:");
-          BTserial_block();
-          refAngs[0] = BTSERIAL.parseInt();
-          BTSERIAL.println("Enter angle 2:");
-          BTserial_block();
-          refAngs[1] = BTSERIAL.parseInt();
-          BTSERIAL.println("Enter angle 3:");
-          BTserial_block();
-          refAngs[2] = BTSERIAL.parseInt();
-          BTSERIAL.println("Target angles:");
-          for (byte i = 0; i < 3; i++)
-          {
-            BTSERIAL.println(refAngs[i]);
-          }
-          BTSERIAL.println();
-
-          // create array of reference angles indexed by sample number
-          genRef(REFtraj, refTimes, refAngs);
-          
-          // track, then hold:
-          set_mode(TRACK);
-          BTSERIAL.println("You're in TRACK mode");
-          unsigned short out_counter = 1;  // counter for when to print
-          delay(1000);
-          interrupts();
-          while (get_mode() == TRACK)
-          {
-            out_counter = out_counter + 1;
-            if (out_counter % PRINTAFTER == 0)
-            {
-              BTSERIAL.print("Current yaw: "); BTSERIAL.println(yawNow);
-              BTSERIAL.print("Target yaw: "); BTSERIAL.println(yawTarget);
-            }
-          }
-          
-          out_counter = 1;
-          while (get_mode() == HOLD)
-          {
-            out_counter = out_counter + 1;
-            if (out_counter % PRINTAFTER == 0)
-            {
-              BTSERIAL.print("Current yaw: "); BTSERIAL.println(yawNow);
-              BTSERIAL.print("Target yaw: "); BTSERIAL.println(yawTarget);
-            }
-          }
-          BTSERIAL.println("You're in IDLE mode");
-          delay(1000);
-          break;
-        }
+//        case 'f':                      // Follow reference trajectory
+//        {
+//          noInterrupts();
+//          delay(1000);
+//
+//          // reset PID parameters
+//          e_yaw_prev = 0;
+//          Eint = 0;
+//          control_sig = 0;
+//          
+//          // take reference trajectory from user
+//          int refTimes[3], refAngs[3];
+//          refTimes[0] = 0;
+//          BTSERIAL.println("Time 1 is 0. Enter time 2:");
+//          BTserial_block();
+//          refTimes[1] = BTSERIAL.parseInt();
+//          BTSERIAL.println("Enter time 3:");
+//          BTserial_block();
+//          refTimes[2] = BTSERIAL.parseInt();
+//          BTSERIAL.println("Target times:");
+//          for (byte i = 0; i < 3; i++)
+//          {
+//            BTSERIAL.println(refTimes[i]);
+//          }
+//          BTSERIAL.println("Enter angle 1:");
+//          BTserial_block();
+//          refAngs[0] = BTSERIAL.parseInt();
+//          BTSERIAL.println("Enter angle 2:");
+//          BTserial_block();
+//          refAngs[1] = BTSERIAL.parseInt();
+//          BTSERIAL.println("Enter angle 3:");
+//          BTserial_block();
+//          refAngs[2] = BTSERIAL.parseInt();
+//          BTSERIAL.println("Target angles:");
+//          for (byte i = 0; i < 3; i++)
+//          {
+//            BTSERIAL.println(refAngs[i]);
+//          }
+//          BTSERIAL.println();
+//
+//          // create array of reference angles indexed by sample number
+//          genRef(REFtraj, refTimes, refAngs);
+//          
+//          // track, then hold:
+//          set_mode(TRACK);
+//          BTSERIAL.println("You're in TRACK mode");
+//          unsigned short out_counter = 1;  // counter for when to print
+//          delay(1000);
+//          interrupts();
+//          while (get_mode() == TRACK)
+//          {
+//            out_counter = out_counter + 1;
+//            if (out_counter % PRINTAFTER == 0)
+//            {
+//              BTSERIAL.print("Current yaw: "); BTSERIAL.println(yawNow);
+//              BTSERIAL.print("Target yaw: "); BTSERIAL.println(yawTarget);
+//            }
+//          }
+//          
+//          out_counter = 1;
+//          while (get_mode() == HOLD)
+//          {
+//            out_counter = out_counter + 1;
+//            if (out_counter % PRINTAFTER == 0)
+//            {
+//              BTSERIAL.print("Current yaw: "); BTSERIAL.println(yawNow);
+//              BTSERIAL.print("Target yaw: "); BTSERIAL.println(yawTarget);
+//            }
+//          }
+//          BTSERIAL.println("You're in IDLE mode");
+//          delay(1000);
+//          break;
+//        }
 
         case 't':                      // Tune gains from disturbance response
         {
@@ -470,14 +502,11 @@ void loop() {
           Eint = 0;
           control_sig = 0;
           yawNow = read_yaw();
-          int yawStart = yawNow;                   
-          yawTarget = correct_yaw(yawNow + 180);          
+          yawTarget = yawNow;                   
           set_mode(HOLD);
-          BTSERIAL.println("You're in HOLD (tune) mode");
+          BTSERIAL.println("You're in HOLD (tune) mode. Disturb and observe.");
           delay(1000);
           interrupts();
-          delay(1);
-          yawTarget = yawStart;
           while (get_mode() == HOLD)
           {
             out_counter = out_counter + 1;

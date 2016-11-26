@@ -60,7 +60,6 @@ bool need_to_retract(void) {
 void calc_send_control(int e_yaw) {
   if (!need_to_retract())  // NOT saturation
   {
-
     if (abs(e_yaw) > yawTol)
     {
       control_sig = Kp*e_yaw + Ki*Eint + Kd*(e_yaw - e_yaw_prev);  // ~ motor speed change
@@ -89,7 +88,7 @@ void calc_send_control(int e_yaw) {
           vals[1] = vals[1] + delta;
           esc1.write(vals[1]);
         }       
-        delay(100);
+        delay(10);
       }
     }
     else
@@ -106,7 +105,7 @@ void calc_send_control(int e_yaw) {
           vals[0] = vals[0] + delta;
           esc0.write(vals[0]);
         }       
-        delay(100);
+        delay(50);
       }      
     }
     Eint = 0;
