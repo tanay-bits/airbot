@@ -12,7 +12,7 @@
 #define LEDPIN 13
 const unsigned short PRINTAFTER = 20000;
 const int MAX_SPEED = 150;    // max ESC write value
-const float CONTROL_PERIOD_MS = 22;
+const int CONTROL_PERIOD_MS = 22;
 const int CONTROL_FREQ = 45;  // approximate control frequency (Hz)
 const int EINT_CAP = 50000;   // execute slow retraction if Eint >= EINT_CAP
 
@@ -43,10 +43,10 @@ IntervalTimer myTimer;
 volatile Mode_datatype mode;                       // declare global var which is the current mode 
 volatile bool startup = false;
 volatile bool synched = false;
-volatile int yawTol = 0;                          // yaw error tolerance
+volatile int yawTol = 10;                          // yaw error tolerance
 volatile int yawNow = 0;                           // current (sensed) yaw
 volatile int yawTarget = 0;                        // target yaw position
-volatile float Kp = 1, Ki = 0, Kd = 0;           // yawdot = Awy * (wu - wnom)
+volatile float Kp = 10, Ki = 0, Kd = 0.01;           // yawdot = Awy * (wu - wnom)
 volatile float control_sig = 0;                    // yaw control signal (~ motor speed change)
 volatile int e_yaw_prev = 0;                       // previous yaw error (for D control)
 volatile int Eint = 0;                             // integral (sum) of control error
@@ -85,8 +85,11 @@ void controller(void)
       // calculate control error and integral of error
       yawNow = read_yaw();
       e_yaw = calc_error(yawTarget - yawNow);
-      Eint = Eint + e_yaw;
-
+      if (abs(e_yaw) > yawTol)
+      {
+        Eint = Eint + e_yaw;
+      }
+      
       // calculate control signal and send to actuator, if error outside deadband
       calc_send_control(e_yaw);
 
@@ -105,7 +108,10 @@ void controller(void)
       yawNow = read_yaw();
       yawTarget = REFtraj[ctr];
       e_yaw = calc_error(yawTarget - yawNow);
-      Eint = Eint + e_yaw;
+      if (abs(e_yaw) > yawTol)
+      {
+        Eint = Eint + e_yaw;
+      }
 
       // calculate control signal and send to actuator, if error outside deadband
       calc_send_control(e_yaw);
@@ -176,10 +182,11 @@ void loop() {
         vals[1] = i;
         esc0.write(vals[0]);
         esc1.write(vals[1]);
-        delay(100);
+//        delay(100);
       }
       startup = true;
       BTSERIAL.println("Startup successful");
+      BTSERIAL.println();
       digitalWrite(LEDPIN, LOW);  // turn off LED to indicate startup
       BTserial_clear();  // Empty the input buffer
       delay(200);    
@@ -199,14 +206,99 @@ void loop() {
         case 'q':                      
         {
           noInterrupts();
+          
           esc0.write(0);
           esc1.write(0);
           startup = false;
           digitalWrite(LEDPIN, HIGH);  // turn on LED to indicate reset
           set_mode(IDLE);
           BTSERIAL.println("You've quit. Press any key to start up again.");
+          BTSERIAL.println();
           delay(1000);
-          // BTserial_clear();
+          
+          interrupts();
+          break;
+        }
+
+        // get current mode
+        case '?':                      
+        {
+          noInterrupts();
+          
+          BTSERIAL.print("You are in ");
+          switch (get_mode())
+          {
+            case IDLE:
+            {
+              BTSERIAL.println("IDLE mode");
+              break;
+            }
+            case READ:
+            {
+              BTSERIAL.println("READ mode");
+              break;
+            }
+            case HOLD:
+            {
+              BTSERIAL.println("HOLD mode");
+              break;
+            }
+            case TRACK:
+            {
+              BTSERIAL.println("TRACK mode");
+              break;
+            }
+            default:
+            {
+              BTSERIAL.println("no valid mode!??");
+              break; 
+            }
+          }
+          BTSERIAL.println();
+          
+          interrupts();
+          break;
+        }
+        
+        // get PID gains
+        case 'g':                      
+        {
+          noInterrupts();
+          
+          BTSERIAL.println("PID gains are:");
+          BTSERIAL.println(Kp);
+          BTSERIAL.println(Ki);
+          BTSERIAL.println(Kd);
+          BTSERIAL.println();
+          
+          interrupts();
+          break;
+        }
+
+        // set PID gains
+        case 's':                      
+        {
+          noInterrupts();
+          delay(1000);
+
+          BTSERIAL.println("Enter P gain:");
+          BTserial_block();
+          Kp = BTSERIAL.parseFloat();
+
+          BTSERIAL.println("Enter I gain:");
+          BTserial_block();
+          Ki = BTSERIAL.parseFloat();
+
+          BTSERIAL.println("Enter D gain:");
+          BTserial_block();
+          Kd = BTSERIAL.parseFloat();
+
+          BTSERIAL.println("New gains are:");
+          BTSERIAL.println(Kp);
+          BTSERIAL.println(Ki);
+          BTSERIAL.println(Kd);
+          BTSERIAL.println();
+          
           interrupts();
           break;
         }
@@ -231,6 +323,7 @@ void loop() {
             }
           }
           BTSERIAL.println("You're in IDLE mode");
+          BTSERIAL.println();
           delay(1000);
           break;
         }
@@ -252,6 +345,7 @@ void loop() {
           esc1.write(vals[1]);
           set_mode(IDLE);
           BTSERIAL.println("You're in IDLE mode");
+          BTSERIAL.println();
           delay(1000);
           interrupts();
           break;
@@ -288,6 +382,7 @@ void loop() {
             }
           }
           BTSERIAL.println("You're in IDLE mode");
+          BTSERIAL.println();
           delay(1000);
           break;
         }
