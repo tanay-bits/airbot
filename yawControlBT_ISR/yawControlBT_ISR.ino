@@ -11,8 +11,10 @@
 #define BTSERIAL Serial2
 #define LEDPIN 13
 const unsigned short PRINTAFTER = 20000;
+const int MAX_SPEED = 150;    // max ESC write value
 const float CONTROL_PERIOD_MS = 22;
 const int CONTROL_FREQ = 45;  // approximate control frequency (Hz)
+const int EINT_CAP = 50000;   // execute slow retraction if Eint >= EINT_CAP
 
 
 /////////////
@@ -41,10 +43,10 @@ IntervalTimer myTimer;
 volatile Mode_datatype mode;                       // declare global var which is the current mode 
 volatile bool startup = false;
 volatile bool synched = false;
-volatile int yawTol = 5;                          // yaw error tolerance
+volatile int yawTol = 0;                          // yaw error tolerance
 volatile int yawNow = 0;                           // current (sensed) yaw
 volatile int yawTarget = 0;                        // target yaw position
-volatile float Kp = 500, Ki = 100, Kd = 0;           // yawdot = Awy * (wu - wnom)
+volatile float Kp = 1, Ki = 0, Kd = 0;           // yawdot = Awy * (wu - wnom)
 volatile float control_sig = 0;                    // yaw control signal (~ motor speed change)
 volatile int e_yaw_prev = 0;                       // previous yaw error (for D control)
 volatile int Eint = 0;                             // integral (sum) of control error
@@ -53,121 +55,6 @@ volatile int REFtraj[500];                         // stores reference trajector
 volatile int ctr = 0;                              // counter to step through REFtraj array
 volatile int refSize;                              // useful length of REFtraj array
 
-//////////////////////
-// HELPER FUNCTIONS //
-//////////////////////
-
-// Maps yaw to (0:360) system
-int correct_yaw(float x) {
-  if (x < 0)
-  {
-    x = x + 360;
-  }
-  else if (x > 360)
-  {
-    x = x - 360;
-  }
-  return (int)x;
-}
-
-int read_yaw(void) {
-  IMUserial_clear();  // Clear input buffer
-  IMUSERIAL.write("#f");  // Request one output frame
-  while (IMUSERIAL.available() < 4) {;}  // Block until 4 bytes are received
-  for (int i = 0; i < 4; i++)  // Read yaw angle
-  {
-    u.b_angle[i] = IMUSERIAL.read();    
-  }
-  return correct_yaw(u.f_angle[0]);
-}
-
-int calc_error(int diff) {
-  if (diff > 180)
-  {
-    diff = diff - 360;
-  }
-  else if (diff < -180)
-  {
-    diff = 360 + diff;
-  }
-  return diff;
-}
-
-// Limits motor speeds to 0-150
-int saturateSpeed(float s) {
-  if (s > 150) {return 150;}
-  else if (s < 0) {return 0;}
-  else {return s;}
-}
-
-// calculate control signal and send to actuator, if error outside deadband
-void calc_send_control(int e_yaw) {
-  if (abs(e_yaw) > yawTol)
-  {
-    control_sig = Kp*e_yaw + Ki*Eint + Kd*(e_yaw - e_yaw_prev);  // ~ motor speed change
-    vals[0] = saturateSpeed(vals[0] - control_sig);  // new speed for motor 0
-    vals[1] = saturateSpeed(vals[1] + control_sig);  // new speed for motor 1
-    esc0.write(vals[0]);
-    esc1.write(vals[1]);
-  }
-}
-
-void BTserial_clear(void) {
-  while (BTSERIAL.available()) {BTSERIAL.read();}
-}
-
-void BTserial_block(void) {
-  while (!BTSERIAL.available()) {;}
-}
-
-void IMUserial_clear(void) {
-  while (IMUSERIAL.available()) {IMUSERIAL.read();}
-}
-
-void IMUserial_block(void) {
-  while (!IMUSERIAL.available()) {;}
-}
-
-void set_mode(Mode_datatype m) {
-  mode = m;
-}
-
-Mode_datatype get_mode(void) {
-  return mode;
-}
-
-// Only needed if continuous output streaming is on
-bool readToken(char* token) {
-  IMUserial_clear(); // Clear input buffer
-  
-  IMUSERIAL.write("#s00"); // Request synch token
-  delay(500);
-  // Check if incoming bytes match token
-  for (unsigned int i = 0; i < (sizeof(token) - (unsigned)1); i++)
-    {
-      if (IMUSERIAL.read() != token[i])
-        return false;
-    }
-  return true;
-}
-
-// Generate trajectory array to follow
-void genRef(volatile int *ref, int *times, int *angs) {
-  int sample_list[3];
-
-  for (int i = 0; i < 3; i++)
-  {
-    sample_list[i] = (int)(times[i] * CONTROL_FREQ);
-  }
-
-  refSize = sample_list[2]; // last element of sample_list (global)
-  int j = 1;
-  for (int i = 0; i < refSize; i++)
-  {
-   if (i == sample_list[j] - 1) {j++;}
-   ref[i] = angs[j-1];  
-  }
-}
 
 /////////
 // ISR //
@@ -283,12 +170,13 @@ void loop() {
   {
     if (BTSERIAL.available())
     {
-      for (int i=10; i < 75; i = i+5)
+      for (int i=10; i <= 75; i = i+1)
       {
         vals[0] = i;
         vals[1] = i;
         esc0.write(vals[0]);
         esc1.write(vals[1]);
+        delay(100);
       }
       startup = true;
       BTSERIAL.println("Startup successful");
@@ -316,7 +204,7 @@ void loop() {
           startup = false;
           digitalWrite(LEDPIN, HIGH);  // turn on LED to indicate reset
           set_mode(IDLE);
-          BTSERIAL.println("You've quit. Press any key to start up again");
+          BTSERIAL.println("You've quit. Press any key to start up again.");
           delay(1000);
           // BTserial_clear();
           interrupts();
@@ -482,6 +370,7 @@ void loop() {
         {
           noInterrupts();
           delay(1000);
+          unsigned short out_counter = 1;  // counter for when to print
           e_yaw_prev = 0;
           Eint = 0;
           control_sig = 0;
@@ -496,7 +385,13 @@ void loop() {
           yawTarget = yawStart;
           while (get_mode() == HOLD)
           {
-            ;
+            out_counter = out_counter + 1;
+            if (out_counter % PRINTAFTER == 0)
+            {
+              // BTSERIAL.print("Current yaw: "); BTSERIAL.println(yawNow);
+              // BTSERIAL.print("Target yaw: "); BTSERIAL.println(yawTarget);
+              BTSERIAL.println(Eint);
+            }
           }
           BTSERIAL.println("You're in IDLE mode");
           delay(1000);

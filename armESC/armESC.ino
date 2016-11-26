@@ -9,20 +9,20 @@ void setup()
   delay(1000);
   Serial.println("This program will arm the ESC.");
 
-  myESC.attach(9);
+  myESC.attach(16);
 
   Serial.println("Now writing 0.");
   val = 0;
+  myESC.write(val);
 }
 
 void loop()
 {
-  myESC.write(val);
   if (Serial.available())
   {
       val = Serial.parseInt();
       Serial.println("Val: ");
       Serial.println(val);
-//      delay(1);
+      myESC.write(val);
   }
 }
