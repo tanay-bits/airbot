@@ -1,4 +1,6 @@
-#define SIGPIN 6
+#define SIG_A 4
+#define SIG_B 5
+#define SIG_C 6
 #define H_HIT 10
 #define V_HIT 20
 
@@ -12,7 +14,7 @@ volatile char pulse_type_now = '?', pulse_type_prev = '?';	// 'S' (sync) or 'H' 
 
 void isr_lighthouse() {
 	time_now = micros();
-	state_now = digitalReadFast(SIGPIN);
+	state_now = digitalReadFast(SIG_B);
 
 	if ((state_now == HIGH) && (state_prev == LOW))
 	{
@@ -66,15 +68,16 @@ void isr_lighthouse() {
 }
 
 void setup() {
-	pinMode(SIGPIN, INPUT);
+	pinMode(SIG_B, INPUT);
 	Serial.begin(115200);
-	attachInterrupt(digitalPinToInterrupt(SIGPIN), isr_lighthouse, CHANGE);
+	attachInterrupt(digitalPinToInterrupt(SIG_B), isr_lighthouse, CHANGE);
 }
 
 void loop() {
 	if (flag)
 	{
 		float angle = sync_to_laser * deg_per_us;
+		
 		if (flag == H_HIT)
 		{
 			Serial.print("H angle: "); Serial.println(angle);
