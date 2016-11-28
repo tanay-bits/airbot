@@ -1,354 +1,324 @@
 #define NUM_SENSORS 3
 #define BUFLEN 256
-#define PRINTAFTER 200000
+#define PRINTAFTER 500
 
-const float deg_per_us = 0.0216;	// (180 deg) / (8333 us)
 const byte SIG[] = {4, 5, 6};
-unsigned long ctr = 0;	// counter for printing
+const float deg_per_us = 0.0216;	// (180 deg) / (8333 us)
+unsigned int ctr = 0;				// counter for printing
 
-struct DataPacket
-{
-	bool state;
-	unsigned long timeStamp;
+// // Could use this struct instead of separate time and state arrays
+// struct DataPacket
+// {
+// 	unsigned long timeStamp;
+// 	bool state;
 
-	DataPacket()
-	{
-		state = HIGH;
-		timeStamp = 0;
-	}
-};
-
-DataPacket dpOld, dpNew;
+// 	DataPacket()
+// 	{
+// 		state = HIGH;
+// 		timeStamp = 0;
+// 	}
+// };
 
 class RingBuf
 {
+	private:
+		int x;										// object identifier (unique for each sensor)
+		volatile short readPos;						// index to read at
+		volatile short writePos;					// index to write at
+		volatile unsigned long timeStamps[BUFLEN];	// array to store time-stamps	
+		volatile bool states[BUFLEN];				// array to store states
+		volatile float h_angle;						// current horizontal angle
+		volatile float v_angle;						// current vertical angle
+
 	public:
-		short readPos;					// index to read at
-		short writePos;					// index to write at
-		DataPacket data_buf[BUFLEN];	// array of data packets
-		bool saw_sync;					// true only whe
-		unsigned long sync_time;		// time of falling edge of sync pulse
-		unsigned long laser_time;		// time of falling edge of laser pulse
-		float h_angle;					// last valid horizontal angle
-		float v_angle;					// last valid vertical angle
-		bool initialRead;				// should be true after initial reading  
+		void setX(int i) volatile { x = i; } 
+		int getX() volatile { return x; }
+		bool buffer_empty(void) volatile;
+		bool buffer_full(void) volatile;
+		unsigned long read_time(void) volatile;
+		bool read_state(void) volatile;
+		void write_time(unsigned long time_val) volatile;
+		void write_state(bool state_val) volatile;
+		void incrementWritePos(void) volatile;
+		void incrementReadPos(void) volatile;
+		unsigned long get_storedTime(unsigned short ndx) volatile;
+		void set_h_angle(float ang) volatile;
+		float get_h_angle(void) volatile;
+		void set_v_angle(float ang) volatile;
+		float get_v_angle(void) volatile;
 
-		bool buffer_empty(void);
-		bool buffer_full(void);
-		DataPacket buffer_read(void);
-		void buffer_write(DataPacket dp);
-
-		RingBuf()
-		{
-			readPos = 0;
-			writePos = 0;
-			saw_sync = false;
-			sync_time = 0;
-			laser_time = 0;
-			h_angle = 0;
-			v_angle = 0;
-			initialRead = false;
-		}
+	RingBuf()
+	{
+		readPos = 0;
+		writePos = 0;
+		h_angle = 0;
+		v_angle = 0;
+	}
 };
 
 // return true if buffer is empty
-bool RingBuf::buffer_empty(void)
+bool RingBuf::buffer_empty(void) volatile
 {
-	return readPos == writePos;
+	return (readPos == writePos);
 }
 
 // return true if buffer is full
-bool RingBuf::buffer_full(void)
+bool RingBuf::buffer_full(void) volatile
 {
-	return (writePos + 1) % BUFLEN == readPos;
+	return ((writePos + 1) % BUFLEN == readPos);
 }
 
 // reads from current buffer location; assumes buffer is not empty
-DataPacket RingBuf::buffer_read(void)
+unsigned long RingBuf::read_time(void) volatile
 {
-	DataPacket dp = data_buf[readPos];
+	unsigned long time_val = timeStamps[readPos];
 	
 	// increment read index and wrap around if necessary
-	++readPos;		
+	// ++readPos;		
+	// if (readPos >= BUFLEN)
+	// {
+	// 	readPos = 0;
+	// }
+ 
+	return time_val;
+}
+
+// reads from current buffer location; assumes buffer is not empty
+bool RingBuf::read_state(void) volatile
+{
+	bool state_val = states[readPos];
+	
+	// increment read index and wrap around if necessary
+	// ++readPos;		
+	// if (readPos >= BUFLEN)
+	// {
+	// 	readPos = 0;
+	// }
+ 
+	return state_val;
+}
+
+// add an element to the buffer, if it's not full (otherwise data would be lost)
+void RingBuf::write_time(unsigned long time_val) volatile
+{
+	timeStamps[writePos] = time_val;
+
+		// // increment write index and wrap around if necessary
+		// ++writePos;
+		// if (writePos >= BUFLEN)
+		// {
+		// 	writePos = 0;
+		// }
+	
+}
+
+// add an element to the buffer, if it's not full (otherwise data would be lost)
+void RingBuf::write_state(bool state_val) volatile
+{
+	states[writePos] = state_val;
+
+		// // increment write index and wrap around if necessary
+		// ++writePos;
+		// if (writePos >= BUFLEN)
+		// {
+		// 	writePos = 0;
+		// }
+
+}
+
+// increment writePos and wrap around if necessary
+void RingBuf::incrementWritePos(void) volatile
+{
+	writePos = writePos + 1;
+	if (writePos >= BUFLEN)
+	{
+		writePos = 0;
+	}
+}
+
+// increment readPos and wrap around if necessary
+void RingBuf::incrementReadPos(void) volatile
+{
+	readPos = readPos + 1;
 	if (readPos >= BUFLEN)
 	{
 		readPos = 0;
 	}
- 
-	return dp;
 }
 
-// add an element to the buffer, if it's not full (otherwise data would be lost)
-void RingBuf::buffer_write(DataPacket dp)
+unsigned long RingBuf::get_storedTime(unsigned short ndx) volatile
 {
-	if (!buffer_full())
-	{
-		data_buf[writePos] = dp;
-
-		// increment write index and wrap around if necessary
-		++writePos;
-		if (writePos >= BUFLEN)
-		{
-			writePos = 0;
-		}
-	}
+	return timeStamps[ndx];
 }
 
-static RingBuf bufA;
+void RingBuf::set_h_angle(float ang) volatile
+{
+	h_angle = ang;
+}
+
+float RingBuf::get_h_angle(void) volatile
+{
+	return h_angle;
+}
+
+void RingBuf::set_v_angle(float ang) volatile
+{
+	v_angle = ang;
+}
+
+float RingBuf::get_v_angle(void) volatile
+{
+	return v_angle;
+}
+
+volatile RingBuf bufs[NUM_SENSORS];
+
+
+void isrA_lighthouse() {
+	int i = 0;
+	unsigned long time_val = micros();
+	bool state_val = digitalReadFast(SIG[i]);
+	if (!bufs[i].buffer_full())
+	{
+		bufs[i].write_time(time_val);
+		bufs[i].write_state(state_val);
+	}
+	bufs[i].incrementWritePos();
+}
+
+void isrB_lighthouse() {
+	int i = 1;
+	unsigned long time_val = micros();
+	bool state_val = digitalReadFast(SIG[i]);
+	if (!bufs[i].buffer_full())
+	{
+		bufs[i].write_time(time_val);
+		bufs[i].write_state(state_val);
+	}
+	bufs[i].incrementWritePos();
+}
+
+void isrC_lighthouse() {
+	int i = 2;
+	unsigned long time_val = micros();
+	bool state_val = digitalReadFast(SIG[i]);
+	if (!bufs[i].buffer_full())
+	{
+		bufs[i].write_time(time_val);
+		bufs[i].write_state(state_val);
+	}
+	bufs[i].incrementWritePos();
+}
 
 
 void setup() {
 	pinMode(SIG[0], INPUT);
-	// pinMode(SIG[1], INPUT);
-	// pinMode(SIG[2], INPUT);
+	pinMode(SIG[1], INPUT);
+	pinMode(SIG[2], INPUT);
+
 	Serial.begin(115200);
-	attachInterrupt(digitalPinToInterrupt(SIG[0]), isrA_lighthouse, CHANGE);
-	// attachInterrupt(digitalPinToInterrupt(SIG[1]), isrB_lighthouse, CHANGE);
-	// attachInterrupt(digitalPinToInterrupt(SIG[2]), isrC_lighthouse, CHANGE);
-}
-
-void loop() {
-	// wait until at least two data packets are in the queue
-	while (bufA.buffer_empty() || bufA.data_buf[1].timeStamp == 0) {;}		
-
-	dpNew.timeStamp = bufA.buffer_read().timeStamp;	// read the last unread packet
-	dpNew.state = bufA.buffer_read().state;			// read the last unread packet
-	
-	if (bufA.initialRead)		// skip if initial reading
+	 
+	for(int i = 0; i < NUM_SENSORS; i++) 
 	{
-		if ((dpNew.state == HIGH) && (dpOld.state == LOW))	// check for valid pulse
-		{
-			unsigned long delta = dpNew.timeStamp - dpOld.timeStamp;
-			if (delta > 50)			// sync pulse
-			{
-				bufA.saw_sync = true;
-				bufA.sync_time = dpOld.timeStamp;
-
-				// reset other stuff
-				bufA.laser_time = 0;
-			}
-			else if (delta > 15)	// horizontal laser pulse
-			{
-				bufA.laser_time = dpOld.timeStamp;
-				
-				if (bufA.saw_sync)
-				{
-					bufA.h_angle = (bufA.laser_time - bufA.sync_time) * deg_per_us;
-				}
-
-				// reset other stuff
-				bufA.laser_time = 0;
-				bufA.sync_time = 0;
-				bufA.saw_sync = false;
-			}
-			else if (delta > 7)		// vertical laser pulse
-			{
-				bufA.laser_time = dpOld.timeStamp;
-				
-				if (bufA.saw_sync)
-				{
-					bufA.v_angle = (bufA.laser_time - bufA.sync_time) * deg_per_us;
-				}
-				
-				// reset other stuff
-				bufA.laser_time = 0;
-				bufA.sync_time = 0;
-				bufA.saw_sync = false;
-			}
-			else					// meaningless reading; reset stuff
-			{	
-				bufA.laser_time = 0;
-				bufA.sync_time = 0;
-				bufA.saw_sync = false;
-			}	
-		}
-
+		bufs[i].setX(i);
 	}
 
-	// update the member variables of dpOld with those of last reading
-	dpOld.timeStamp = dpNew.timeStamp;
-	dpOld.state = dpNew.state;
+	attachInterrupt(digitalPinToInterrupt(SIG[0]), isrA_lighthouse, CHANGE);
+	attachInterrupt(digitalPinToInterrupt(SIG[1]), isrB_lighthouse, CHANGE);
+	attachInterrupt(digitalPinToInterrupt(SIG[2]), isrC_lighthouse, CHANGE);
+}
 
-	if (!bufA.initialRead)
+
+unsigned long time_now[] = {0, 0, 0};
+unsigned long time_prev[] = {0, 0, 0};
+unsigned long ts[] = {0, 0, 0};
+unsigned long tl[] = {0, 0, 0};
+bool state_now[] = {HIGH, HIGH, HIGH};
+bool state_prev[] = {HIGH, HIGH, HIGH};
+char pulse_type_now[] = {'?', '?', '?'};
+char pulse_type_prev[] = {'?', '?', '?'}; 
+
+void loop() {
+	for (int i = 0; i < NUM_SENSORS; i++)
 	{
-		bufA.initialRead = true;
+		// wait until at least two data packets are in the queue
+		while (bufs[i].buffer_empty() || (bufs[i].get_storedTime(1) == 0)) {;}
+
+		time_now[i] = bufs[i].read_time();
+		state_now[i] = bufs[i].read_state();
+		bufs[i].incrementReadPos();
+
+		if ((state_now[i] == HIGH) && (state_prev[i] == LOW))	// valid pulse
+		{
+			unsigned long delta = time_now[i] - time_prev[i];
+			if (delta > 50)			// SYNC pulse
+			{
+				pulse_type_now[i] = 'S';
+				ts[i] = time_prev[i];
+
+				// reset other stuff
+				tl[i] = 0;
+			}
+			else if (delta > 18)	// HORIZONTAL LASER pulse
+			{
+				pulse_type_now[i] = 'H';
+				tl[i] = time_prev[i];
+				if (pulse_type_prev[i] == 'S')
+				{
+					float ang = (tl[i] - ts[i]) * deg_per_us;
+					bufs[i].set_h_angle(ang);
+				}
+
+				// reset stuff
+				ts[i] = 0;
+				tl[i] = 0;
+			}
+			else if (delta > 8)		// VERTICAL LASER pulse
+			{
+				pulse_type_now[i] = 'V';
+				tl[i] = time_prev[i];
+				if (pulse_type_prev[i] == 'S')
+				{
+					float ang = (tl[i] - ts[i]) * deg_per_us;
+					bufs[i].set_v_angle(ang);
+				}
+
+				// reset stuff
+				ts[i] = 0;
+				tl[i] = 0;
+			}
+			else					// meaningless pulse
+			{
+				pulse_type_now[i] = '?';
+				
+				// reset stuff
+				ts[i] = 0;
+				tl[i] = 0;
+			}
+		}
+
+		// update previous values
+		state_prev[i] = state_now[i];
+		time_prev[i] = time_now[i];
+		pulse_type_prev[i] = pulse_type_now[i];
 	}
 
 	// print for debugging
-	// if (++ctr % PRINTAFTER == 0)
-	// {
-	Serial.print("H angle: ");
-	// for (int i = 0; i < NUM_SENSORS; i++)
-	// {
-	Serial.print(bufA.h_angle);
-	// Serial.print(" ");
-	// }
-	Serial.print("\nV angle: ");
-	// for (int i = 0; i < NUM_SENSORS; i++)
-	// {
-	Serial.print(bufA.v_angle);
-	// Serial.print(" ");
-	// }
-	Serial.print("\n");
-	// }
+	if (++ctr % PRINTAFTER == 0)
+	{
+		Serial.print("H angles: ");
+		for (byte j = 0; j < NUM_SENSORS; j++)
+		{
+			Serial.print(bufs[j].get_h_angle());
+			Serial.print(" ");
+		}
+		Serial.print("\nV angles: ");
+		for (int j = 0; j < NUM_SENSORS; j++)
+		{
+			Serial.print(bufs[j].get_v_angle());
+			Serial.print(" ");
+		}
+		Serial.print("\n");
+		Serial.print("\n");
+	}
 }
-
-void isrA_lighthouse() {
-	byte ndx = 0;
-	DataPacket dp;
-	dp.timeStamp = micros();
-	dp.state = digitalReadFast(SIG[ndx]);
-	bufA.buffer_write(dp);
-}
-
-
-
-// void isrA_lighthouse() {
-// 	byte ndx = 0;
-
-// 	time_now[ndx] = micros();
-// 	state_now[ndx] = digitalReadFast(SIG[ndx]);
-
-// 	if ((state_now[ndx] == HIGH) && (state_prev[ndx] == LOW))
-// 	{
-// 		unsigned long delta = time_now[ndx] - time_prev[ndx];
-// 		if (delta > 50)
-// 		{
-// 			pulse_type_now[ndx] = 'S';
-// 			ts[ndx] = time_prev[ndx];
-
-// 			// reset other stuff
-// 			tl[ndx] = 0;
-// 		}
-// 		else if (delta > 15)
-// 		{
-// 			pulse_type_now[ndx] = 'H';
-// 			tl[ndx] = time_prev[ndx];
-// 			if (pulse_type_prev[ndx] == 'S')
-// 			{
-// 				h_angles[ndx] = (tl[ndx] - ts[ndx]) * deg_per_us;
-// 			}
-// 		}
-// 		else if (delta > 7)
-// 		{
-// 			pulse_type_now[ndx] = 'V';
-// 			tl[ndx] = time_prev[ndx];
-// 			if (pulse_type_prev[ndx] == 'S')
-// 			{
-// 				v_angles[ndx] = (tl[ndx] - ts[ndx]) * deg_per_us;
-// 			}
-// 		}
-// 		else
-// 		{
-// 			pulse_type_now[ndx] = '?';
-			
-// 			// reset stuff
-// 			ts[ndx] = 0;
-// 			tl[ndx] = 0;
-// 		}
-// 	}
-
-// 	state_prev[ndx] = state_now[ndx];
-// 	time_prev[ndx] = time_now[ndx];
-// 	pulse_type_prev[ndx] = pulse_type_now[ndx];
-// }
-
-// void isrB_lighthouse() {
-// 	byte ndx = 1;
-
-// 	time_now[ndx] = micros();
-// 	state_now[ndx] = digitalReadFast(SIG[ndx]);
-
-// 	if ((state_now[ndx] == HIGH) && (state_prev[ndx] == LOW))
-// 	{
-// 		unsigned long delta = time_now[ndx] - time_prev[ndx];
-// 		if (delta > 50)
-// 		{
-// 			pulse_type_now[ndx] = 'S';
-// 			ts[ndx] = time_prev[ndx];
-
-// 			// reset other stuff
-// 			tl[ndx] = 0;
-// 		}
-// 		else if (delta > 15)
-// 		{
-// 			pulse_type_now[ndx] = 'H';
-// 			tl[ndx] = time_prev[ndx];
-// 			if (pulse_type_prev[ndx] == 'S')
-// 			{
-// 				h_angles[ndx] = (tl[ndx] - ts[ndx]) * deg_per_us;
-// 			}
-// 		}
-// 		else if (delta > 7)
-// 		{
-// 			pulse_type_now[ndx] = 'V';
-// 			tl[ndx] = time_prev[ndx];
-// 			if (pulse_type_prev[ndx] == 'S')
-// 			{
-// 				v_angles[ndx] = (tl[ndx] - ts[ndx]) * deg_per_us;
-// 			}
-// 		}
-// 		else
-// 		{
-// 			pulse_type_now[ndx] = '?';
-			
-// 			// reset stuff
-// 			ts[ndx] = 0;
-// 			tl[ndx] = 0;
-// 		}
-// 	}
-
-// 	state_prev[ndx] = state_now[ndx];
-// 	time_prev[ndx] = time_now[ndx];
-// 	pulse_type_prev[ndx] = pulse_type_now[ndx];
-// }
-
-// void isrC_lighthouse() {
-// 	byte ndx = 2;
-
-// 	time_now[ndx] = micros();
-// 	state_now[ndx] = digitalReadFast(SIG[ndx]);
-
-// 	if ((state_now[ndx] == HIGH) && (state_prev[ndx] == LOW))
-// 	{
-// 		unsigned long delta = time_now[ndx] - time_prev[ndx];
-// 		if (delta > 50)
-// 		{
-// 			pulse_type_now[ndx] = 'S';
-// 			ts[ndx] = time_prev[ndx];
-
-// 			// reset other stuff
-// 			tl[ndx] = 0;
-// 		}
-// 		else if (delta > 15)
-// 		{
-// 			pulse_type_now[ndx] = 'H';
-// 			tl[ndx] = time_prev[ndx];
-// 			if (pulse_type_prev[ndx] == 'S')
-// 			{
-// 				h_angles[ndx] = (tl[ndx] - ts[ndx]) * deg_per_us;
-// 			}
-// 		}
-// 		else if (delta > 7)
-// 		{
-// 			pulse_type_now[ndx] = 'V';
-// 			tl[ndx] = time_prev[ndx];
-// 			if (pulse_type_prev[ndx] == 'S')
-// 			{
-// 				v_angles[ndx] = (tl[ndx] - ts[ndx]) * deg_per_us;
-// 			}
-// 		}
-// 		else
-// 		{
-// 			pulse_type_now[ndx] = '?';
-			
-// 			// reset stuff
-// 			ts[ndx] = 0;
-// 			tl[ndx] = 0;
-// 		}
-// 	}
-
-// 	state_prev[ndx] = state_now[ndx];
-// 	time_prev[ndx] = time_now[ndx];
-// 	pulse_type_prev[ndx] = pulse_type_now[ndx];
-// }
