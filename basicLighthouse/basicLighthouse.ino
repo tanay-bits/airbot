@@ -1,93 +1,354 @@
-#define SIG_A 4
-#define SIG_B 5
-#define SIG_C 6
-#define H_HIT 10
-#define V_HIT 20
+#define NUM_SENSORS 3
+#define BUFLEN 256
+#define PRINTAFTER 200000
 
-const float deg_per_us = 0.0216;	// 180 deg / 8333 us
+const float deg_per_us = 0.0216;	// (180 deg) / (8333 us)
+const byte SIG[] = {4, 5, 6};
+unsigned long ctr = 0;	// counter for printing
 
-volatile byte flag = 0;				// 0 (no laser pulse) or H_HIT or V_HIT
-volatile boolean pulse = false;
-volatile boolean state_now, state_prev;
-volatile unsigned long time_now, time_prev, delta, ts, tl, sync_to_laser;
-volatile char pulse_type_now = '?', pulse_type_prev = '?';	// 'S' (sync) or 'H' (horizontal laser) or 'V' (vertical laser)
+struct DataPacket
+{
+	bool state;
+	unsigned long timeStamp;
 
-void isr_lighthouse() {
-	time_now = micros();
-	state_now = digitalReadFast(SIG_B);
-
-	if ((state_now == HIGH) && (state_prev == LOW))
+	DataPacket()
 	{
-		pulse = true;
-		delta = time_now - time_prev;
-		if (delta > 50)
-		{
-			pulse_type_now = 'S';
-			ts = time_prev;
-
-			// reset other stuff
-			tl = 0;
-			sync_to_laser = 0;
-			flag = 0;
-		}
-		else if (delta > 15)
-		{
-			pulse_type_now = 'H';
-			tl = time_prev;
-			if (pulse_type_prev == 'S')
-			{
-				sync_to_laser = tl - ts;
-				flag = H_HIT;
-			}
-		}
-		else if (delta > 7)
-		{
-			pulse_type_now = 'V';
-			tl = time_prev;
-			if (pulse_type_prev == 'S')
-			{
-				sync_to_laser = tl - ts;
-				flag = V_HIT;
-			}
-		}
-		else
-		{
-			pulse_type_now = '?';
-			
-			// reset stuff
-			ts = 0;
-			tl = 0;
-			sync_to_laser = 0;
-			flag = 0;
-		}
+		state = HIGH;
+		timeStamp = 0;
 	}
+};
 
-	state_prev = state_now;
-	time_prev = time_now;
-	pulse_type_prev = pulse_type_now;
+DataPacket dpOld, dpNew;
+
+class RingBuf
+{
+	public:
+		short readPos;					// index to read at
+		short writePos;					// index to write at
+		DataPacket data_buf[BUFLEN];	// array of data packets
+		bool saw_sync;					// true only whe
+		unsigned long sync_time;		// time of falling edge of sync pulse
+		unsigned long laser_time;		// time of falling edge of laser pulse
+		float h_angle;					// last valid horizontal angle
+		float v_angle;					// last valid vertical angle
+		bool initialRead;				// should be true after initial reading  
+
+		bool buffer_empty(void);
+		bool buffer_full(void);
+		DataPacket buffer_read(void);
+		void buffer_write(DataPacket dp);
+
+		RingBuf()
+		{
+			readPos = 0;
+			writePos = 0;
+			saw_sync = false;
+			sync_time = 0;
+			laser_time = 0;
+			h_angle = 0;
+			v_angle = 0;
+			initialRead = false;
+		}
+};
+
+// return true if buffer is empty
+bool RingBuf::buffer_empty(void)
+{
+	return readPos == writePos;
 }
 
+// return true if buffer is full
+bool RingBuf::buffer_full(void)
+{
+	return (writePos + 1) % BUFLEN == readPos;
+}
+
+// reads from current buffer location; assumes buffer is not empty
+DataPacket RingBuf::buffer_read(void)
+{
+	DataPacket dp = data_buf[readPos];
+	
+	// increment read index and wrap around if necessary
+	++readPos;		
+	if (readPos >= BUFLEN)
+	{
+		readPos = 0;
+	}
+ 
+	return dp;
+}
+
+// add an element to the buffer, if it's not full (otherwise data would be lost)
+void RingBuf::buffer_write(DataPacket dp)
+{
+	if (!buffer_full())
+	{
+		data_buf[writePos] = dp;
+
+		// increment write index and wrap around if necessary
+		++writePos;
+		if (writePos >= BUFLEN)
+		{
+			writePos = 0;
+		}
+	}
+}
+
+static RingBuf bufA;
+
+
 void setup() {
-	pinMode(SIG_B, INPUT);
+	pinMode(SIG[0], INPUT);
+	// pinMode(SIG[1], INPUT);
+	// pinMode(SIG[2], INPUT);
 	Serial.begin(115200);
-	attachInterrupt(digitalPinToInterrupt(SIG_B), isr_lighthouse, CHANGE);
+	attachInterrupt(digitalPinToInterrupt(SIG[0]), isrA_lighthouse, CHANGE);
+	// attachInterrupt(digitalPinToInterrupt(SIG[1]), isrB_lighthouse, CHANGE);
+	// attachInterrupt(digitalPinToInterrupt(SIG[2]), isrC_lighthouse, CHANGE);
 }
 
 void loop() {
-	if (flag)
+	// wait until at least two data packets are in the queue
+	while (bufA.buffer_empty() || bufA.data_buf[1].timeStamp == 0) {;}		
+
+	dpNew.timeStamp = bufA.buffer_read().timeStamp;	// read the last unread packet
+	dpNew.state = bufA.buffer_read().state;			// read the last unread packet
+	
+	if (bufA.initialRead)		// skip if initial reading
 	{
-		float angle = sync_to_laser * deg_per_us;
-		
-		if (flag == H_HIT)
+		if ((dpNew.state == HIGH) && (dpOld.state == LOW))	// check for valid pulse
 		{
-			Serial.print("H angle: "); Serial.println(angle);
+			unsigned long delta = dpNew.timeStamp - dpOld.timeStamp;
+			if (delta > 50)			// sync pulse
+			{
+				bufA.saw_sync = true;
+				bufA.sync_time = dpOld.timeStamp;
+
+				// reset other stuff
+				bufA.laser_time = 0;
+			}
+			else if (delta > 15)	// horizontal laser pulse
+			{
+				bufA.laser_time = dpOld.timeStamp;
+				
+				if (bufA.saw_sync)
+				{
+					bufA.h_angle = (bufA.laser_time - bufA.sync_time) * deg_per_us;
+				}
+
+				// reset other stuff
+				bufA.laser_time = 0;
+				bufA.sync_time = 0;
+				bufA.saw_sync = false;
+			}
+			else if (delta > 7)		// vertical laser pulse
+			{
+				bufA.laser_time = dpOld.timeStamp;
+				
+				if (bufA.saw_sync)
+				{
+					bufA.v_angle = (bufA.laser_time - bufA.sync_time) * deg_per_us;
+				}
+				
+				// reset other stuff
+				bufA.laser_time = 0;
+				bufA.sync_time = 0;
+				bufA.saw_sync = false;
+			}
+			else					// meaningless reading; reset stuff
+			{	
+				bufA.laser_time = 0;
+				bufA.sync_time = 0;
+				bufA.saw_sync = false;
+			}	
 		}
-		else if (flag == V_HIT)
-		{
-			Serial.print("V angle: "); Serial.println(angle);
-		}
-		else {Serial.println("ERROR!");}
-		
-		flag = 0;
+
 	}
+
+	// update the member variables of dpOld with those of last reading
+	dpOld.timeStamp = dpNew.timeStamp;
+	dpOld.state = dpNew.state;
+
+	if (!bufA.initialRead)
+	{
+		bufA.initialRead = true;
+	}
+
+	// print for debugging
+	// if (++ctr % PRINTAFTER == 0)
+	// {
+	Serial.print("H angle: ");
+	// for (int i = 0; i < NUM_SENSORS; i++)
+	// {
+	Serial.print(bufA.h_angle);
+	// Serial.print(" ");
+	// }
+	Serial.print("\nV angle: ");
+	// for (int i = 0; i < NUM_SENSORS; i++)
+	// {
+	Serial.print(bufA.v_angle);
+	// Serial.print(" ");
+	// }
+	Serial.print("\n");
+	// }
 }
+
+void isrA_lighthouse() {
+	byte ndx = 0;
+	DataPacket dp;
+	dp.timeStamp = micros();
+	dp.state = digitalReadFast(SIG[ndx]);
+	bufA.buffer_write(dp);
+}
+
+
+
+// void isrA_lighthouse() {
+// 	byte ndx = 0;
+
+// 	time_now[ndx] = micros();
+// 	state_now[ndx] = digitalReadFast(SIG[ndx]);
+
+// 	if ((state_now[ndx] == HIGH) && (state_prev[ndx] == LOW))
+// 	{
+// 		unsigned long delta = time_now[ndx] - time_prev[ndx];
+// 		if (delta > 50)
+// 		{
+// 			pulse_type_now[ndx] = 'S';
+// 			ts[ndx] = time_prev[ndx];
+
+// 			// reset other stuff
+// 			tl[ndx] = 0;
+// 		}
+// 		else if (delta > 15)
+// 		{
+// 			pulse_type_now[ndx] = 'H';
+// 			tl[ndx] = time_prev[ndx];
+// 			if (pulse_type_prev[ndx] == 'S')
+// 			{
+// 				h_angles[ndx] = (tl[ndx] - ts[ndx]) * deg_per_us;
+// 			}
+// 		}
+// 		else if (delta > 7)
+// 		{
+// 			pulse_type_now[ndx] = 'V';
+// 			tl[ndx] = time_prev[ndx];
+// 			if (pulse_type_prev[ndx] == 'S')
+// 			{
+// 				v_angles[ndx] = (tl[ndx] - ts[ndx]) * deg_per_us;
+// 			}
+// 		}
+// 		else
+// 		{
+// 			pulse_type_now[ndx] = '?';
+			
+// 			// reset stuff
+// 			ts[ndx] = 0;
+// 			tl[ndx] = 0;
+// 		}
+// 	}
+
+// 	state_prev[ndx] = state_now[ndx];
+// 	time_prev[ndx] = time_now[ndx];
+// 	pulse_type_prev[ndx] = pulse_type_now[ndx];
+// }
+
+// void isrB_lighthouse() {
+// 	byte ndx = 1;
+
+// 	time_now[ndx] = micros();
+// 	state_now[ndx] = digitalReadFast(SIG[ndx]);
+
+// 	if ((state_now[ndx] == HIGH) && (state_prev[ndx] == LOW))
+// 	{
+// 		unsigned long delta = time_now[ndx] - time_prev[ndx];
+// 		if (delta > 50)
+// 		{
+// 			pulse_type_now[ndx] = 'S';
+// 			ts[ndx] = time_prev[ndx];
+
+// 			// reset other stuff
+// 			tl[ndx] = 0;
+// 		}
+// 		else if (delta > 15)
+// 		{
+// 			pulse_type_now[ndx] = 'H';
+// 			tl[ndx] = time_prev[ndx];
+// 			if (pulse_type_prev[ndx] == 'S')
+// 			{
+// 				h_angles[ndx] = (tl[ndx] - ts[ndx]) * deg_per_us;
+// 			}
+// 		}
+// 		else if (delta > 7)
+// 		{
+// 			pulse_type_now[ndx] = 'V';
+// 			tl[ndx] = time_prev[ndx];
+// 			if (pulse_type_prev[ndx] == 'S')
+// 			{
+// 				v_angles[ndx] = (tl[ndx] - ts[ndx]) * deg_per_us;
+// 			}
+// 		}
+// 		else
+// 		{
+// 			pulse_type_now[ndx] = '?';
+			
+// 			// reset stuff
+// 			ts[ndx] = 0;
+// 			tl[ndx] = 0;
+// 		}
+// 	}
+
+// 	state_prev[ndx] = state_now[ndx];
+// 	time_prev[ndx] = time_now[ndx];
+// 	pulse_type_prev[ndx] = pulse_type_now[ndx];
+// }
+
+// void isrC_lighthouse() {
+// 	byte ndx = 2;
+
+// 	time_now[ndx] = micros();
+// 	state_now[ndx] = digitalReadFast(SIG[ndx]);
+
+// 	if ((state_now[ndx] == HIGH) && (state_prev[ndx] == LOW))
+// 	{
+// 		unsigned long delta = time_now[ndx] - time_prev[ndx];
+// 		if (delta > 50)
+// 		{
+// 			pulse_type_now[ndx] = 'S';
+// 			ts[ndx] = time_prev[ndx];
+
+// 			// reset other stuff
+// 			tl[ndx] = 0;
+// 		}
+// 		else if (delta > 15)
+// 		{
+// 			pulse_type_now[ndx] = 'H';
+// 			tl[ndx] = time_prev[ndx];
+// 			if (pulse_type_prev[ndx] == 'S')
+// 			{
+// 				h_angles[ndx] = (tl[ndx] - ts[ndx]) * deg_per_us;
+// 			}
+// 		}
+// 		else if (delta > 7)
+// 		{
+// 			pulse_type_now[ndx] = 'V';
+// 			tl[ndx] = time_prev[ndx];
+// 			if (pulse_type_prev[ndx] == 'S')
+// 			{
+// 				v_angles[ndx] = (tl[ndx] - ts[ndx]) * deg_per_us;
+// 			}
+// 		}
+// 		else
+// 		{
+// 			pulse_type_now[ndx] = '?';
+			
+// 			// reset stuff
+// 			ts[ndx] = 0;
+// 			tl[ndx] = 0;
+// 		}
+// 	}
+
+// 	state_prev[ndx] = state_now[ndx];
+// 	time_prev[ndx] = time_now[ndx];
+// 	pulse_type_prev[ndx] = pulse_type_now[ndx];
+// }
