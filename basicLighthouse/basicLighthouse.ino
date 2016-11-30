@@ -1,5 +1,5 @@
 #define NUM_SENSORS 3
-#define BUFLEN 256
+#define BUFLEN 8
 #define PRINTAFTER 500
 
 const byte SIG[] = {4, 5, 6};
@@ -9,7 +9,7 @@ unsigned int ctr = 0;				// counter for printing
 // // Could use this struct instead of separate time and state arrays
 // struct DataPacket
 // {
-// 	unsigned long timeStamp;
+// 	uint32_t timeStamp;
 // 	bool state;
 
 // 	DataPacket()
@@ -22,26 +22,26 @@ unsigned int ctr = 0;				// counter for printing
 class RingBuf
 {
 	private:
-		int x;										// object identifier (unique for each sensor)
-		volatile short readPos;						// index to read at
-		volatile short writePos;					// index to write at
-		volatile unsigned long timeStamps[BUFLEN];	// array to store time-stamps	
-		volatile bool states[BUFLEN];				// array to store states
-		volatile float h_angle;						// current horizontal angle
-		volatile float v_angle;						// current vertical angle
+		uint8_t id;						// object identifier (unique for each sensor)
+		short readPos;					// index to read at
+		short writePos;					// index to write at
+		uint32_t timeStamps[BUFLEN];	// array to store time-stamps	
+		bool states[BUFLEN];			// array to store states
+		float h_angle;					// current horizontal angle
+		float v_angle;					// current vertical angle
 
 	public:
-		void setX(int i) volatile { x = i; } 
-		int getX() volatile { return x; }
+		void setID(uint8_t i) volatile; 
+		uint8_t getID(void) volatile;
 		bool buffer_empty(void) volatile;
 		bool buffer_full(void) volatile;
-		unsigned long read_time(void) volatile;
+		uint32_t read_time(void) volatile;
 		bool read_state(void) volatile;
-		void write_time(unsigned long time_val) volatile;
+		void write_time(uint32_t time_val) volatile;
 		void write_state(bool state_val) volatile;
 		void incrementWritePos(void) volatile;
 		void incrementReadPos(void) volatile;
-		unsigned long get_storedTime(unsigned short ndx) volatile;
+		uint32_t get_storedTime(unsigned short ndx) volatile;
 		void set_h_angle(float ang) volatile;
 		float get_h_angle(void) volatile;
 		void set_v_angle(float ang) volatile;
@@ -56,6 +56,36 @@ class RingBuf
 	}
 };
 
+void RingBuf::setID(uint8_t i) volatile
+{
+	id = i;
+}
+
+uint8_t RingBuf::getID(void) volatile
+{ 
+	return id;
+}
+
+void RingBuf::set_h_angle(float ang) volatile 
+{
+	h_angle = ang;
+}
+
+float RingBuf::get_h_angle(void) volatile
+{
+	return h_angle;
+}
+
+void RingBuf::set_v_angle(float ang) volatile
+{
+	v_angle = ang;
+}
+
+float RingBuf::get_v_angle(void) volatile
+{
+	return v_angle;
+}
+
 // return true if buffer is empty
 bool RingBuf::buffer_empty(void) volatile
 {
@@ -69,61 +99,27 @@ bool RingBuf::buffer_full(void) volatile
 }
 
 // reads from current buffer location; assumes buffer is not empty
-unsigned long RingBuf::read_time(void) volatile
-{
-	unsigned long time_val = timeStamps[readPos];
-	
-	// increment read index and wrap around if necessary
-	// ++readPos;		
-	// if (readPos >= BUFLEN)
-	// {
-	// 	readPos = 0;
-	// }
- 
-	return time_val;
+uint32_t RingBuf::read_time(void) volatile
+{ 
+	return timeStamps[readPos];
 }
 
 // reads from current buffer location; assumes buffer is not empty
 bool RingBuf::read_state(void) volatile
 {
-	bool state_val = states[readPos];
-	
-	// increment read index and wrap around if necessary
-	// ++readPos;		
-	// if (readPos >= BUFLEN)
-	// {
-	// 	readPos = 0;
-	// }
- 
-	return state_val;
+	return states[readPos];
 }
 
 // add an element to the buffer, if it's not full (otherwise data would be lost)
-void RingBuf::write_time(unsigned long time_val) volatile
+void RingBuf::write_time(uint32_t time_val) volatile
 {
-	timeStamps[writePos] = time_val;
-
-		// // increment write index and wrap around if necessary
-		// ++writePos;
-		// if (writePos >= BUFLEN)
-		// {
-		// 	writePos = 0;
-		// }
-	
+	timeStamps[writePos] = time_val;	
 }
 
 // add an element to the buffer, if it's not full (otherwise data would be lost)
 void RingBuf::write_state(bool state_val) volatile
 {
 	states[writePos] = state_val;
-
-		// // increment write index and wrap around if necessary
-		// ++writePos;
-		// if (writePos >= BUFLEN)
-		// {
-		// 	writePos = 0;
-		// }
-
 }
 
 // increment writePos and wrap around if necessary
@@ -146,37 +142,18 @@ void RingBuf::incrementReadPos(void) volatile
 	}
 }
 
-unsigned long RingBuf::get_storedTime(unsigned short ndx) volatile
+// query a time-stamp from the buffer
+uint32_t RingBuf::get_storedTime(unsigned short ndx) volatile
 {
 	return timeStamps[ndx];
-}
-
-void RingBuf::set_h_angle(float ang) volatile
-{
-	h_angle = ang;
-}
-
-float RingBuf::get_h_angle(void) volatile
-{
-	return h_angle;
-}
-
-void RingBuf::set_v_angle(float ang) volatile
-{
-	v_angle = ang;
-}
-
-float RingBuf::get_v_angle(void) volatile
-{
-	return v_angle;
 }
 
 volatile RingBuf bufs[NUM_SENSORS];
 
 
 void isrA_lighthouse() {
-	int i = 0;
-	unsigned long time_val = micros();
+	uint32_t time_val = micros();
+	uint8_t i = 0;
 	bool state_val = digitalReadFast(SIG[i]);
 	if (!bufs[i].buffer_full())
 	{
@@ -187,9 +164,9 @@ void isrA_lighthouse() {
 }
 
 void isrB_lighthouse() {
-	int i = 1;
-	unsigned long time_val = micros();
-	bool state_val = digitalReadFast(SIG[i]);
+  uint32_t time_val = micros();
+  uint8_t i = 1;
+  bool state_val = digitalReadFast(SIG[i]);
 	if (!bufs[i].buffer_full())
 	{
 		bufs[i].write_time(time_val);
@@ -199,9 +176,9 @@ void isrB_lighthouse() {
 }
 
 void isrC_lighthouse() {
-	int i = 2;
-	unsigned long time_val = micros();
-	bool state_val = digitalReadFast(SIG[i]);
+  uint32_t time_val = micros();
+  uint8_t i = 2;
+  bool state_val = digitalReadFast(SIG[i]);
 	if (!bufs[i].buffer_full())
 	{
 		bufs[i].write_time(time_val);
@@ -218,7 +195,7 @@ void setup() {
 
 	Serial.begin(115200);
 	 
-	for(int i = 0; i < NUM_SENSORS; i++) 
+	for(uint8_t i = 0; i < NUM_SENSORS; i++) 
 	{
 		bufs[i].setX(i);
 	}
@@ -229,17 +206,17 @@ void setup() {
 }
 
 
-unsigned long time_now[] = {0, 0, 0};
-unsigned long time_prev[] = {0, 0, 0};
-unsigned long ts[] = {0, 0, 0};
-unsigned long tl[] = {0, 0, 0};
+uint32_t time_now[] = {0, 0, 0};
+uint32_t time_prev[] = {0, 0, 0};
+uint32_t ts[] = {0, 0, 0};
+uint32_t tl[] = {0, 0, 0};
 bool state_now[] = {HIGH, HIGH, HIGH};
 bool state_prev[] = {HIGH, HIGH, HIGH};
 char pulse_type_now[] = {'?', '?', '?'};
 char pulse_type_prev[] = {'?', '?', '?'}; 
 
 void loop() {
-	for (int i = 0; i < NUM_SENSORS; i++)
+	for (uint8_t i = 0; i < NUM_SENSORS; i++)
 	{
 		// wait until at least two data packets are in the queue
 		while (bufs[i].buffer_empty() || (bufs[i].get_storedTime(1) == 0)) {;}
@@ -250,7 +227,7 @@ void loop() {
 
 		if ((state_now[i] == HIGH) && (state_prev[i] == LOW))	// valid pulse
 		{
-			unsigned long delta = time_now[i] - time_prev[i];
+			uint32_t delta = time_now[i] - time_prev[i];
 			if (delta > 50)			// SYNC pulse
 			{
 				pulse_type_now[i] = 'S';
@@ -313,7 +290,7 @@ void loop() {
 			Serial.print(" ");
 		}
 		Serial.print("\nV angles: ");
-		for (int j = 0; j < NUM_SENSORS; j++)
+		for (uint8_t j = 0; j < NUM_SENSORS; j++)
 		{
 			Serial.print(bufs[j].get_v_angle());
 			Serial.print(" ");

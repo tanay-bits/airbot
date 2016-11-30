@@ -1,8 +1,146 @@
 /* This file is part of the AirBot firmware */
 
+#include "yaw_control.h"
+
+
+/////////
+// ISR //
+/////////
+
+void controller(void)
+{  
+  int e_yaw;
+
+  switch (get_mode())
+  {
+		case IDLE:
+		{
+		  break;
+		}
+
+		case READ:
+		{
+		  yawNow = read_yaw();
+		  if (BTSERIAL.available())
+		  {
+				set_mode(IDLE);
+		  }
+		  break;
+		}
+		
+		case HOLD:
+		{
+		  // calculate control error and integral of error
+		  yawNow = read_yaw();
+		  e_yaw = calc_error(yawTarget - yawNow);
+		  Eint = Eint + e_yaw;
+		  	  
+		  // calculate control signal and send to actuator, if error outside deadband
+		  calc_send_control(e_yaw);
+
+		  // update previous error for derivative calculation
+		  e_yaw_prev = e_yaw;
+
+		  if (BTSERIAL.available())
+		  {
+				set_mode(IDLE);
+		  }
+		  break;
+		}
+
+		case TRACK:		// TODO
+		{
+		  break;
+		}
+
+		case VIVE:		// TODO
+		{
+		  read_lighthouse();
+		  if (BTSERIAL.available())
+		  {
+				set_mode(IDLE);
+		  }
+		  break;
+		}
+
+		default:
+		{
+		  digitalWrite(LEDPIN, HIGH);  // turn on LED to indicate an error
+		  break;
+		}
+  }
+}
+
 //////////////////////
 // HELPER FUNCTIONS //
 //////////////////////
+
+void read_lighthouse(void)
+{
+	for (int i = 0; i < NUM_SENSORS; i++)
+	{
+		// wait until at least two data packets are in the queue
+		while (bufs[i].buffer_empty() || (bufs[i].get_storedTime(1) == 0)) {;}
+
+		time_now[i] = bufs[i].read_time();
+		state_now[i] = bufs[i].read_state();
+		bufs[i].incrementReadPos();
+
+		if ((state_now[i] == HIGH) && (state_prev[i] == LOW))	// valid pulse
+		{
+			unsigned long delta = time_now[i] - time_prev[i];
+			if (delta > 50)			// SYNC pulse
+			{
+				pulse_type_now[i] = 'S';
+				ts[i] = time_prev[i];
+
+				// reset other stuff
+				tl[i] = 0;
+			}
+			else if (delta > 18)	// HORIZONTAL LASER pulse
+			{
+				pulse_type_now[i] = 'H';
+				tl[i] = time_prev[i];
+				if (pulse_type_prev[i] == 'S')
+				{
+					float ang = (tl[i] - ts[i]) * deg_per_us;
+					bufs[i].set_h_angle(ang);
+				}
+
+				// reset stuff
+				ts[i] = 0;
+				tl[i] = 0;
+			}
+			else if (delta > 8)		// VERTICAL LASER pulse
+			{
+				pulse_type_now[i] = 'V';
+				tl[i] = time_prev[i];
+				if (pulse_type_prev[i] == 'S')
+				{
+					float ang = (tl[i] - ts[i]) * deg_per_us;
+					bufs[i].set_v_angle(ang);
+				}
+
+				// reset stuff
+				ts[i] = 0;
+				tl[i] = 0;
+			}
+			else					// meaningless pulse
+			{
+				pulse_type_now[i] = '?';
+				
+				// reset stuff
+				ts[i] = 0;
+				tl[i] = 0;
+			}
+		}
+
+		// update previous values
+		state_prev[i] = state_now[i];
+		time_prev[i] = time_now[i];
+		pulse_type_prev[i] = pulse_type_now[i];
+	}
+}
 
 // Maps yaw to (0:360) system
 int correct_yaw(float x) {
@@ -150,22 +288,4 @@ bool readToken(char* token) {
 		return false;
 	}
   return true;
-}
-
-// Generate trajectory array to follow
-void genRef(volatile int *ref, int *times, int *angs) {
-  int sample_list[3];
-
-  for (int i = 0; i < 3; i++)
-  {
-	sample_list[i] = (int)(times[i] * CONTROL_FREQ);
-  }
-
-  refSize = sample_list[2]; // last element of sample_list (global)
-  int j = 1;
-  for (int i = 0; i < refSize; i++)
-  {
-   if (i == sample_list[j] - 1) {j++;}
-   ref[i] = angs[j-1];  
-  }
 }
