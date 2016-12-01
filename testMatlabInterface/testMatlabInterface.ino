@@ -11,16 +11,15 @@ void loop() {
 		char input = BTSERIAL.read();
 		switch (input)
 		{
-			case 'l':
+			case 'a':
 			{
-				float f_val = 42.01;
-				char str[10];
-				dtostrf(f_val, 4, 2, str);
-				// sprintf(str, "%f", val);
+				int REFtraji = 34;
+				int SENtraji = 449;
+				char str[15];
+				sprintf(str, "%d %d\r\n", REFtraji, SENtraji);
 
-				// print or write?
-				BTSERIAL.write(f_val);
-				BTSERIAL.write("\r\n");
+				BTSERIAL.write(str);
+
 
 				// float f2_val = 1.00;
 				// dtostrf(f2_val, 4, 2, str);

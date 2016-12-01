@@ -1,16 +1,22 @@
+/////////////////////////////////
+// IMPORTS, CONSTANTS, GLOBALS //
+/////////////////////////////////
+
 #include <Servo.h>
 
-#define PRINTAFTER 500
-
-///////////////////////////////////////////////////////////////////////////////////////
-
+// #define PRINTAFTER 500
+#define ANGSLEN 50
+#define NUM_SENSORS 3
+#define BUFLEN 16
 #define IMUSERIAL Serial1
 #define BTSERIAL Serial2
 #define LEDPIN 13
+// #define MAXSAMPS 50      				// max number of samples in ref trajectory
 
 const int MAX_SPEED = 160;    		// max ESC write value
 const int CONTROL_PERIOD_MS = 22;	// controller fires up every these many milliseconds
-//const int CONTROL_FREQ = 45;  		// approximate control frequency (Hz)
+const uint8_t SIG[] = {4, 5, 6};
+const float deg_per_us = 0.0216;	// (180 deg) / (8333 us)
 
 // Create Servo objects: esc0 - CW wheel, esc1 - CCW wheel
 Servo esc0, esc1;
@@ -26,47 +32,50 @@ union u_tag {
 } u; 
 
 // Enumerated type to represent different modes of operation
-typedef enum {IDLE=0, READ=1, HOLD=2, TRACK=3, VIVE=4} Mode_datatype;                                  
+typedef enum {IDLE=0, HOLD=1, TRACK=2} Mode_datatype;                                  
 
 volatile Mode_datatype mode;                       // declare global var which is the current mode 
 volatile bool startup = false;
 volatile bool synched = false;
 volatile int yawTol = 0;                           // yaw error tolerance
-volatile int yawNow = 0;                           // current (sensed) yaw
-volatile int yawTarget = 0;                        // target yaw position
+volatile int ang_target = 0;                       // target yaw angle
 volatile float Kp = 0.1, Ki = 0, Kd = 2;           // yawdot = Awy * (wu - wnom)
 volatile float control_sig = 0;                    // yaw control signal (~ motor speed change)
 volatile int e_yaw_prev = 0;                       // previous yaw error (for D control)
 volatile int Eint = 0;                             // integral (sum) of control error
 volatile int EINT_CAP = 50000;                     // execute slow retraction if Eint >= EINT_CAP
 volatile int vals[2] = {0, 0};                     // w0 and w1 (motor speeds)
-volatile int REFtraj[500];                         // stores reference trajectory
-volatile int ctr = 0;                              // counter to step through REFtraj array
-volatile int refSize;                              // useful length of REFtraj array
+// volatile uint16_t num_samples = 0;                 // # of samples in ref trajectory
+// volatile int16_t REFtraj[MAXSAMPS];                // stores reference trajectory
+// volatile int16_t SENtraj[MAXSAMPS];                // stores measured trajectory
 
-///////////////////////////////////////////////////////
 
-#define NUM_SENSORS 3
-#define BUFLEN 8
+//////////////////////////////////////////////////////////////////////////////////////////////////////
 
-const byte SIG[] = {4, 5, 6};		// pins to which the sensors are hooked
-const float deg_per_us = 0.0216;	// (180 deg) / (8333 us)
- 
+///////////////////////////////////////
+// RING BUFFER CLASS, LIGHTHOUSE ISR //
+/////////////////////////////////////// 
 
 class RingBuf
 {
 	private:
-		int id;										// object identifier (unique for each sensor)
-		short readPos;						// index to read at
-		short writePos;					// index to write at
+		uint8_t id;						// object identifier (unique for each sensor)
+		uint8_t readPos;				// index to read at
+		uint8_t writePos;				// index to write at
 		uint32_t timeStamps[BUFLEN];	// array to store time-stamps	
-		bool states[BUFLEN];				// array to store states
-		float h_angle;						// current horizontal angle
-		float v_angle;						// current vertical angle
+		bool states[BUFLEN];			// array to store states
+		float h_angles[ANGSLEN];		// current horizontal angle
+		float v_angles[ANGSLEN];		// current vertical angle
+		uint8_t h_count;				// no. of h angles collected
+		uint8_t v_count;				// no. of v angles collected
 
 	public:
-		void setID(int i) volatile; 
-		int getID(void) volatile;
+		void setID(uint8_t i) volatile; 
+		uint8_t getID(void) volatile;
+		void setHcount(uint8_t i) volatile; 
+		uint8_t getHcount(void) volatile;
+		void setVcount(uint8_t i) volatile; 
+		uint8_t getVcount(void) volatile;
 		bool buffer_empty(void) volatile;
 		bool buffer_full(void) volatile;
 		uint32_t read_time(void) volatile;
@@ -75,49 +84,69 @@ class RingBuf
 		void write_state(bool state_val) volatile;
 		void incrementWritePos(void) volatile;
 		void incrementReadPos(void) volatile;
-		uint32_t get_storedTime(unsigned short ndx) volatile;
-		void set_h_angle(float ang) volatile;
-		float get_h_angle(void) volatile;
-		void set_v_angle(float ang) volatile;
-		float get_v_angle(void) volatile;
+		uint32_t get_storedTime(uint8_t ndx) volatile;
+		void insert_h_angle(float ang, uint8_t ndx) volatile;
+		float get_h_angle(uint8_t ndx) volatile;
+		void insert_v_angle(float ang, uint8_t ndx) volatile;
+		float get_v_angle(uint8_t ndx) volatile;
 
 	RingBuf()
 	{
 		readPos = 0;
 		writePos = 0;
-		h_angle = 0;
-		v_angle = 0;
+		h_count = 0;
+		v_count = 0;
 	}
 };
 
-void RingBuf::setID(int i) volatile
+void RingBuf::setID(uint8_t i) volatile
 {
 	id = i;
 }
 
-int RingBuf::getID(void) volatile
+uint8_t RingBuf::getID(void) volatile
 { 
 	return id;
 }
 
-void RingBuf::set_h_angle(float ang) volatile 
+void RingBuf::setHcount(uint8_t i) volatile
 {
-	h_angle = ang;
+	h_count = i;
 }
 
-float RingBuf::get_h_angle(void) volatile
-{
-	return h_angle;
+uint8_t RingBuf::getHcount(void) volatile
+{ 
+	return h_count;
 }
 
-void RingBuf::set_v_angle(float ang) volatile
+void RingBuf::setVcount(uint8_t i) volatile
 {
-	v_angle = ang;
+	v_count = i;
 }
 
-float RingBuf::get_v_angle(void) volatile
+uint8_t RingBuf::getVcount(void) volatile
+{ 
+	return v_count;
+}
+
+void RingBuf::insert_h_angle(float ang, uint8_t ndx) volatile 
 {
-	return v_angle;
+	h_angles[ndx] = ang;
+}
+
+float RingBuf::get_h_angle(uint8_t ndx) volatile
+{
+	return h_angles[ndx];
+}
+
+void RingBuf::insert_v_angle(float ang, uint8_t ndx) volatile
+{
+	v_angles[ndx] = ang;
+}
+
+float RingBuf::get_v_angle(uint8_t ndx) volatile
+{
+	return v_angles[ndx];
 }
 
 // return true if buffer is empty
@@ -177,22 +206,61 @@ void RingBuf::incrementReadPos(void) volatile
 }
 
 // query a time-stamp from the buffer
-uint32_t RingBuf::get_storedTime(unsigned short ndx) volatile
+uint32_t RingBuf::get_storedTime(uint8_t ndx) volatile
 {
 	return timeStamps[ndx];
 }
 
+// Create array of ring buffers - one for each sensor
+volatile RingBuf bufs[NUM_SENSORS];
+
+void isrA_lighthouse() {
+	uint32_t time_val = micros();
+	uint8_t i = 0;
+	bool state_val = digitalReadFast(SIG[i]);
+	if (!bufs[i].buffer_full())
+	{
+		bufs[i].write_time(time_val);
+		bufs[i].write_state(state_val);
+	}
+	bufs[i].incrementWritePos();
+}
+
+void isrB_lighthouse() {
+  uint32_t time_val = micros();
+  uint8_t i = 1;
+  bool state_val = digitalReadFast(SIG[i]);
+	if (!bufs[i].buffer_full())
+	{
+		bufs[i].write_time(time_val);
+		bufs[i].write_state(state_val);
+	}
+	bufs[i].incrementWritePos();
+}
+
+void isrC_lighthouse() {
+  uint32_t time_val = micros();
+  uint8_t i = 2;
+  bool state_val = digitalReadFast(SIG[i]);
+	if (!bufs[i].buffer_full())
+	{
+		bufs[i].write_time(time_val);
+		bufs[i].write_state(state_val);
+	}
+	bufs[i].incrementWritePos();
+}
 
 
-////////////////////////////////////////////////////////////////////////
+//////////////////////////////////////////////////////////////////////////////////////////////////////
 
 ////////////////////
 // CONTROLLER ISR //
 ////////////////////
 
 void controller(void)
-{  
-  int e_yaw;
+{
+	static int ctr = 0;  // initialize counter once  
+  int e_yaw, yawNow, yawTarget;
 
   switch (get_mode())
   {
@@ -200,21 +268,12 @@ void controller(void)
 		{
 		  break;
 		}
-
-		case READ:
-		{
-		  yawNow = read_yaw();
-		  if (BTSERIAL.available())
-		  {
-				set_mode(IDLE);
-		  }
-		  break;
-		}
 		
 		case HOLD:
 		{
 		  // calculate control error and integral of error
 		  yawNow = read_yaw();
+		  yawTarget = ang_target;
 		  e_yaw = calc_error(yawTarget - yawNow);
 		  Eint = Eint + e_yaw;
 		  	  
@@ -233,16 +292,29 @@ void controller(void)
 
 		case TRACK:		// TODO
 		{
-		  break;
-		}
+			// // calculate control error and integral of error
+		 //  yawNow = read_yaw();
+		 //  yawTarget = REFtraj[ctr];
+		 //  e_yaw = calc_error(yawTarget - yawNow);
+		 //  Eint = Eint + e_yaw;
 
-		case VIVE:		// TODO
-		{
-//		  read_lighthouse();
-		  if (BTSERIAL.available())
-		  {
-				set_mode(IDLE);
-		  }
+		 //  // calculate control signal and send to actuator, if error outside deadband
+		 //  calc_send_control(e_yaw);
+
+		 //  // update previous error for derivative calculation
+		 //  e_yaw_prev = e_yaw;
+
+		 //  // // store data for MATLAB:
+   //  //   SENtraj[ctr] = yawNow;
+
+   //    ctr++;
+   //    if (ctr == num_samples)
+   //    {
+   //      ang_target = REFtraj[num_samples-1];  // set last ref as target for HOLD
+   //      ctr = 0;                              // reset counter
+   //      set_mode(HOLD);
+   //    }
+
 		  break;
 		}
 
@@ -253,6 +325,9 @@ void controller(void)
 		}
   }
 }
+
+
+//////////////////////////////////////////////////////////////////////////////////////////////////////
 
 //////////////////////
 // HELPER FUNCTIONS //
@@ -275,7 +350,7 @@ int read_yaw(void) {
   IMUserial_clear();  // Clear input buffer
   IMUSERIAL.write("#f");  // Request one output frame
   while (IMUSERIAL.available() < 4) {;}  // Block until 4 bytes are received
-  for (int i = 0; i < 4; i++)  // Read yaw angle
+  for (uint8_t i = 0; i < 4; i++)  // Read yaw angle
   {
 	u.b_angle[i] = IMUSERIAL.read();    
   }
@@ -406,70 +481,35 @@ bool readToken(char* token) {
   return true;
 }
 
-/////////////////////////////////////////////////////////////////////////////
-// Create array of ring buffers - one for each sensor
-volatile RingBuf bufs[NUM_SENSORS];
 
-void isrA_lighthouse() {
-	uint32_t time_val = micros();
-	uint8_t i = 0;
-	bool state_val = digitalReadFast(SIG[i]);
-	if (!bufs[i].buffer_full())
-	{
-		bufs[i].write_time(time_val);
-		bufs[i].write_state(state_val);
-	}
-	bufs[i].incrementWritePos();
-}
+//////////////////////////////////////////////////////////////////////////////////////////////////////
 
-void isrB_lighthouse() {
-  uint32_t time_val = micros();
-  uint8_t i = 1;
-  bool state_val = digitalReadFast(SIG[i]);
-	if (!bufs[i].buffer_full())
-	{
-		bufs[i].write_time(time_val);
-		bufs[i].write_state(state_val);
-	}
-	bufs[i].incrementWritePos();
-}
-
-void isrC_lighthouse() {
-  uint32_t time_val = micros();
-  uint8_t i = 2;
-  bool state_val = digitalReadFast(SIG[i]);
-	if (!bufs[i].buffer_full())
-	{
-		bufs[i].write_time(time_val);
-		bufs[i].write_state(state_val);
-	}
-	bufs[i].incrementWritePos();
-}
-
-//////////////////////////////////////////////////////////////////////////////////////
+////////////////////
+// SETUP AND LOOP //
+////////////////////
 
 void setup() {
-  delay(3000);  // Give enough time for Razor to auto-reset
-  noInterrupts();
+  delay(3000);  	// give enough time for Razor to auto-reset
+  noInterrupts();	// disable interrupts
   
+  // make sensor pins inputs
   pinMode(SIG[0], INPUT);
   pinMode(SIG[1], INPUT);
   pinMode(SIG[2], INPUT);
 
 
-  // Initialize serial channels:
+  // initialize serial channels
   BTSERIAL.begin(9600);
 //  IMUSERIAL.begin(58824);
   IMUSERIAL.begin(57600);
-//  delay(1000);
   
-  // Arm the ESC's:
+  // arm the ESC's
   esc0.attach(16);
   esc1.attach(17);
   esc0.write(vals[0]);
   esc1.write(vals[1]);
   
-  // Set Razor output parameters:
+  // set Razor output parameters
   IMUSERIAL.write("#ob");  // Turn on binary output
   IMUSERIAL.write("#o0");  // Turn OFF continuous streaming output
   IMUSERIAL.write("#oe0"); // Disable error message output 
@@ -477,432 +517,422 @@ void setup() {
   pinMode(LEDPIN, OUTPUT);
   digitalWrite(LEDPIN, HIGH);  // turn on LED
 
-  interrupts();
+  interrupts();	//enable interrupts
   
   // controller to run every 22ms (IMU sensing is at 20ms)
   myTimer.begin(controller, CONTROL_PERIOD_MS * 1000);
 }
 
 void loop() {
-  // Wait for user to send something to indicate the connection is ready
-  if (!startup)
-  {
-		if (BTSERIAL.available())
-		{
-		  startup = true;
-		  BTSERIAL.println("Start up successful");
-		  BTSERIAL.println();
-		  digitalWrite(LEDPIN, LOW);  // turn off LED to indicate startup
-		  BTserial_clear();  // Empty the input buffer
-		}
-	}
+	// Keep polling for user input
+	if (BTSERIAL.available())
+	{
+	  char input = BTSERIAL.read();
+	  digitalWrite(LEDPIN, LOW);
+	  
+	  switch (input)
+	  {
+	  	// unpower motors
+	  	case 'p':                      
+	  	{
+	  	  noInterrupts();
+	  	  
+	  	  esc0.write(0);
+	  	  esc1.write(0);
+	  	  digitalWrite(LEDPIN, HIGH);  // turn on LED to indicate reset
+	  	  set_mode(IDLE);
+	  	  BTSERIAL.write("Motors are powered off.\r\n");
+	  	  delay(1000);
+	  	  
+	  	  interrupts();
+	  	  break;
+	  	}
 
-  if (startup)
-  {
-		// Keep polling for user input
-		if (BTSERIAL.available())
-		{
-		  char input = BTSERIAL.read();
-		  
-		  switch (input)
-		  {
+			// Equilibrium mode (both motors ramp up to MAX_SPEED/2)
+			case 'e':
+			{         
+			  for (int i=10; i <= MAX_SPEED/2; i = i+1)
+			  {
+					vals[0] = i;
+					vals[1] = i;
+					esc0.write(vals[0]);
+					esc1.write(vals[1]);
+			  }
+			  BTSERIAL.write("Ramp-up to equilibrium complete.\r\n");  
+			  break;
+			}
+			
+			// get parameters - PID gains, yawTol, EINT_CAP, current mode
+			case '?':                      
+			{
+			  noInterrupts();
+			  
+			  char str[10];
+			  dtostrf(Kp, 4, 2, str);
+			  BTSERIAL.write(str);
+			  BTSERIAL.write("\r\n");
 
-		  	// read and print sensor angles from Lighthouse
-				case 'l':                      
-				{
-				  noInterrupts();
-				  delay(1000);
+			  dtostrf(Ki, 4, 2, str);
+			  BTSERIAL.write(str);
+			  BTSERIAL.write("\r\n");
 
-          
-          for(uint8_t i = 0; i < NUM_SENSORS; i++) 
-          {
-            bufs[i].setID(i);
-          }
-          
-          uint32_t time_now[] = {0, 0, 0};
-          uint32_t time_prev[] = {0, 0, 0};
-          uint32_t tS[] = {0, 0, 0};
-          uint32_t tLH[] = {0, 0, 0};
-          uint32_t tLV[] = {0, 0, 0};
-          bool state_now[] = {HIGH, HIGH, HIGH};
-          bool state_prev[] = {HIGH, HIGH, HIGH};
-          char pulse_type_now[] = {'?', '?', '?'};
-          char pulse_type_prev[] = {'?', '?', '?'};
-          
-				  unsigned short out_counter = 1;  // counter for when to print
-				  set_mode(VIVE);
-				  BTSERIAL.println("You're in VIVE mode");
-				  delay(1000);
-				  BTserial_clear();
-          attachInterrupt(digitalPinToInterrupt(SIG[0]), isrA_lighthouse, CHANGE);
-          attachInterrupt(digitalPinToInterrupt(SIG[1]), isrB_lighthouse, CHANGE);
-          attachInterrupt(digitalPinToInterrupt(SIG[2]), isrC_lighthouse, CHANGE);
-				  interrupts();       
-//          delay(5);
-				  while (get_mode() == VIVE)
-				  {
-            for (uint8_t i = 0; i < NUM_SENSORS; i++)
-            {
-              // wait until at least two data packets are in the queue
-              while (bufs[i].buffer_empty() || (bufs[i].get_storedTime(1) == 0)) {;}
-          
-              time_now[i] = bufs[i].read_time();
-              state_now[i] = bufs[i].read_state();
-              bufs[i].incrementReadPos();
-          
-              if ((state_now[i] == HIGH) && (state_prev[i] == LOW)) // valid pulse
-              {
-                uint32_t delta = time_now[i] - time_prev[i];
-                if (delta > 50)     // SYNC pulse
-                {
-                  pulse_type_now[i] = 'S';
-                  tS[i] = time_prev[i];
-          
-                  // reset other stuff
-                  tLH[i] = 0;
-                  tLV[i] = 0;
-                }
-                else if ((delta > 15) && (delta < 25))  // HORIZONTAL LASER pulse
-                {
-                  pulse_type_now[i] = 'H';
-                  tLH[i] = time_prev[i];
-                  if (pulse_type_prev[i] == 'S')
-                  {
-                    float angH = (tLH[i] - tS[i]) * deg_per_us;
-                    bufs[i].set_h_angle(angH);
-                  }
-          
-                  // reset stuff
-                  tS[i] = 0;
-                  tLH[i] = 0;
-                  tLV[i] = 0;
-                }
-                else if ((delta > 5) && (delta < 15))   // VERTICAL LASER pulse
-                {
-                  pulse_type_now[i] = 'V';
-                  tLV[i] = time_prev[i];
-                  if (pulse_type_prev[i] == 'S')
-                  {
-                    float angV = (tLV[i] - tS[i]) * deg_per_us;
-                    bufs[i].set_v_angle(angV);
-                  }
-          
-                  // reset stuff
-                  tS[i] = 0;
-                  tLH[i] = 0;
-                  tLV[i] = 0;
-                }
-                else          // meaningless pulse
-                {
-                  pulse_type_now[i] = '?';
-                  
-                  // reset stuff
-                  tS[i] = 0;
-                  tLH[i] = 0;
-                  tLV[i] = 0;
-                }
-              }
-          
-              // update previous values
-              state_prev[i] = state_now[i];
-              time_prev[i] = time_now[i];
-              pulse_type_prev[i] = pulse_type_now[i];
-            }
+			  dtostrf(Kd, 4, 2, str);
+			  BTSERIAL.write(str);
+			  BTSERIAL.write("\r\n");
+			  
+			  dtostrf(yawTol, 4, 2, str);
+			  BTSERIAL.write(str);
+			  BTSERIAL.write("\r\n");
 
-            
-						out_counter = out_counter + 1;
-						if (out_counter % PRINTAFTER == 0)
-						{
-							BTSERIAL.println("H angles: ");
-							for (uint8_t j = 0; j < NUM_SENSORS; j++)
-							{
-								BTSERIAL.println(bufs[j].get_h_angle());
-							}
-							BTSERIAL.println("V angles: ");
-							for (uint8_t k = 0; k < NUM_SENSORS; k++)
-							{
-								BTSERIAL.println(bufs[k].get_v_angle());
-							}
-							BTSERIAL.println();
-							BTSERIAL.println();
-						}
-				  }
-         
-				  BTSERIAL.println("You're in IDLE mode");
-				  BTSERIAL.println();
-				  delay(1000);
-				  break;
-				}
+			  dtostrf(EINT_CAP, 4, 2, str);
+			  BTSERIAL.write(str);
+			  BTSERIAL.write("\r\n");
 
-				// stop motors and reset
-				case 'q':                      
-				{
-				  noInterrupts();
-				  
-				  esc0.write(0);
-				  esc1.write(0);
-				  startup = false;
-				  digitalWrite(LEDPIN, HIGH);  // turn on LED to indicate reset
-				  set_mode(IDLE);
-				  BTSERIAL.println("You've quit. Press any key to start up again.");
-				  BTSERIAL.println();
-				  delay(1000);
-				  
-				  interrupts();
-				  break;
-				}
+			  switch (get_mode())
+			  {
+					case IDLE:
+					{
+					  BTSERIAL.write("IDLE mode\r\n");
+					  break;
+					}
+					case HOLD:
+					{
+					  BTSERIAL.println("HOLD mode\r\n");
+					  break;
+					}
+					case TRACK:
+					{
+					  BTSERIAL.println("TRACK mode\r\n");
+					  break;
+					}
+					default:
+					{
+					  BTSERIAL.println("no valid mode!??\r\n");
+					  break; 
+					}
+			  }
+			  
+			  interrupts();
+			  break;
+			}
 
-				// Equilibrium mode (both motors ramp up to MAX_SPEED/2)
-				case 'e':
-				{         
-				  for (int i=10; i <= MAX_SPEED/2; i = i+1)
-				  {
-						vals[0] = i;
-						vals[1] = i;
-						esc0.write(vals[0]);
-						esc1.write(vals[1]);
-			//            delay(50);  // to slow down the ramp-up
-				  }
-				  BTSERIAL.println("Ramp-up to equilibrium complete.");
-				  BTSERIAL.println();   
-				  break;
-				}
-				
-				// get parameters - PID gains, yawTol, EINT_CAP, current mode
-				case '?':                      
-				{
-				  noInterrupts();
-				  
-				  BTSERIAL.println("PID gains are:");
-				  BTSERIAL.println(Kp);
-				  BTSERIAL.println(Ki);
-				  BTSERIAL.println(Kd);
-				  BTSERIAL.println();
+			// set PID gains
+			case 's':                      
+			{
+			  noInterrupts();
+			  delay(1000);
 
-				  BTSERIAL.println("yawTol is:");
-				  BTSERIAL.println(yawTol);
-				  BTSERIAL.println();
+			  BTserial_block();
+			  Kp = BTSERIAL.parseFloat();
 
-				  BTSERIAL.println("EINT_CAP is:");
-				  BTSERIAL.println(EINT_CAP);
-				  BTSERIAL.println();
+			  BTserial_block();
+			  Ki = BTSERIAL.parseFloat();
 
-				  BTSERIAL.print("You are in ");
-				  switch (get_mode())
-				  {
-						case IDLE:
-						{
-						  BTSERIAL.println("IDLE mode");
-						  break;
-						}
-						case READ:
-						{
-						  BTSERIAL.println("READ mode");
-						  break;
-						}
-						case HOLD:
-						{
-						  BTSERIAL.println("HOLD mode");
-						  break;
-						}
-						case TRACK:
-						{
-						  BTSERIAL.println("TRACK mode");
-						  break;
-						}
-						default:
-						{
-						  BTSERIAL.println("no valid mode!??");
-						  break; 
-						}
-				  }
-				  BTSERIAL.println();
-				  
-				  interrupts();
-				  break;
-				}
+			  BTserial_block();
+			  Kd = BTSERIAL.parseFloat();
 
-				// set PID gains
-				case 's':                      
-				{
-				  noInterrupts();
-				  delay(1000);
+			  char str[10];
+			  dtostrf(Kp, 1, 2, str);
+			  BTSERIAL.write(str);
+			  BTSERIAL.write("\r\n");
 
-				  BTSERIAL.println("Enter P gain:");
-				  BTserial_block();
-				  Kp = BTSERIAL.parseFloat();
+			  dtostrf(Ki, 1, 2, str);
+			  BTSERIAL.write(str);
+			  BTSERIAL.write("\r\n");
 
-				  BTSERIAL.println("Enter I gain:");
-				  BTserial_block();
-				  Ki = BTSERIAL.parseFloat();
+			  dtostrf(Kd, 1, 2, str);
+			  BTSERIAL.write(str);
+			  BTSERIAL.write("\r\n");
+			  
+			  interrupts();
+			  break;
+			}
 
-				  BTSERIAL.println("Enter D gain:");
-				  BTserial_block();
-				  Kd = BTSERIAL.parseFloat();
+			// read and print current yaw (deg)
+			case 'r':                      
+			{
+			  noInterrupts();
+			  delay(1000);
+			  BTserial_clear();
+			  char str[10];
+			  int yaw = read_yaw();
+			  dtostrf(yaw, 1, 2, str);
+			  BTSERIAL.write(str);
+			  BTSERIAL.write("\r\n");
+			  interrupts();
+			  break;
+			}
 
-				  BTSERIAL.println("New gains are:");
-				  BTSERIAL.println(Kp);
-				  BTSERIAL.println(Ki);
-				  BTSERIAL.println(Kd);
-				  BTSERIAL.println();
-				  
-				  interrupts();
-				  break;
-				}
+			// manually change motor speeds
+			case 'm':
+			{
+			  noInterrupts();
+			  delay(1000);
+			  BTserial_block();
+			  vals[0] = BTSERIAL.parseInt();
+			  vals[1] = BTSERIAL.parseInt();
+			  esc0.write(vals[0]);
+			  esc1.write(vals[1]);
+			  set_mode(IDLE);
+			  delay(1000);
+			  interrupts();
+			  break;
+			}
 
-				// set yawTol
-				case 'b':                      
-				{
-				  noInterrupts();
-				  delay(1000);
+			// go to target yaw and hold
+			case 'h':
+			{
+			  noInterrupts();
+			  delay(1000);
+			  e_yaw_prev = 0;
+			  Eint = 0;
+			  control_sig = 0;
+			  BTserial_block();
+			  int yawChange = BTSERIAL.parseInt();
+			  int yaw = read_yaw();                   
+			  ang_target = correct_yaw(yaw + yawChange);          
+			  set_mode(HOLD);
+			  interrupts();
+			  while (get_mode() == HOLD)
+			  {
+			  	;
+			  }
+			  delay(1000);
+			  break;
+			}
 
-				  BTSERIAL.println("Enter desired yawTol:");
-				  BTserial_block();
-				  yawTol = BTSERIAL.parseInt();
-				  BTSERIAL.println("New yawTol is:");
-				  BTSERIAL.println(yawTol);
-				  BTSERIAL.println();
-				  
-				  interrupts();
-				  break;
-				}
+			// // load step trajectory
+			// case 'x':                      
+			// {
+			// 	noInterrupts();
+			//   int i, ref_deg;
+			//   BTserial_block();
+			//   num_samples = BTSERIAL.parseInt();
+			//   digitalWrite(LEDPIN, HIGH);		  
+			//   for (i = 0; i < num_samples; i++)
+			//   {
+			//   	ref_deg = BTSERIAL.parseInt();
+			//     REFtraj[i] = ref_deg;
+			//   }
+			//   digitalWrite(LEDPIN, LOW);
+			//   interrupts();        
+			//   break;
+			// }
 
-				// set EINT_CAP for triggering retraction
-				case 'c':                      
-				{
-				  noInterrupts();
-				  delay(1000);
+			// // load cubic trajectory
+			// case 'y':                      
+			// {
+			// 	noInterrupts();
+			//   int i, ref_deg;
+			//   BTserial_block();
+			//   num_samples = BTSERIAL.parseInt();
+			//   digitalWrite(LEDPIN, HIGH);			  
+			//   for (i = 0; i < num_samples; i++)
+			//   {
+			//   	ref_deg = BTSERIAL.parseInt();
+			//     REFtraj[i] = ref_deg;
+			//   }
+			//   digitalWrite(LEDPIN, LOW);
+			//   interrupts();        
+			//   break;
+			// }
 
-				  BTSERIAL.println("Enter desired EINT_CAP:");
-				  BTserial_block();
-				  EINT_CAP = BTSERIAL.parseInt();
-				  BTSERIAL.println("New EINT_CAP is:");
-				  BTSERIAL.println(EINT_CAP);
-				  BTSERIAL.println();
-				  
-				  interrupts();
-				  break;
-				}
+			// // execute trajectory
+			// case 'o':                      
+			// {
+			//   noInterrupts();
+			//   delay(1000);
+			//   e_yaw_prev = 0;
+			//   Eint = 0;
+			//   control_sig = 0;
 
-				// read and print current yaw (deg)
-				case 'r':                      
-				{
-				  noInterrupts();
-				  delay(1000);
-				  unsigned short out_counter = 1;  // counter for when to print
-				  set_mode(READ);
-				  BTSERIAL.println("You're in READ mode");
-				  delay(1000);
-				  BTserial_clear();
-				  interrupts();
-				  while (get_mode() == READ)
-				  {
-						out_counter = out_counter + 1;
-						if (out_counter % PRINTAFTER == 0)
-						{
-						  BTSERIAL.print("Current yaw: "); BTSERIAL.println(yawNow);
-						}
-				  }
-				  BTSERIAL.println("You're in IDLE mode");
-				  BTSERIAL.println();
-				  delay(1000);
-				  break;
-				}
+			//   // Track, then hold:
+			//   set_mode(TRACK);
+			//   interrupts();
+			//   while (get_mode() == TRACK) {;}
+			//   BTSERIAL.write("Now in HOLD mode.\r\n");
+			//   while (get_mode() == HOLD) {;}
 
-				// manually change motor speeds
-				case 'm':
-				{
-				  noInterrupts();
-				  delay(1000);
-				  BTSERIAL.println("Enter motor speeds separated by whitespace:");
-				  BTserial_block();
-				  vals[0] = BTSERIAL.parseInt();
-				  vals[1] = BTSERIAL.parseInt();
-				  BTSERIAL.println("Speeds:");
-				  BTSERIAL.print(vals[0]);
-				  BTSERIAL.print(" ");
-				  BTSERIAL.println(vals[1]);
-				  esc0.write(vals[0]);
-				  esc1.write(vals[1]);
-				  set_mode(IDLE);
-				  BTSERIAL.println("You're in IDLE mode");
-				  BTSERIAL.println();
-				  delay(1000);
-				  interrupts();
-				  break;
-				}
+			//   // // Send plot data to MATLAB:
+			//   // noInterrupts();
+			//   // char outstr[15];       
+			//   // sprintf(outstr, "%d\r\n", num_samples);
+			//   // BTSERIAL.write(outstr);
+			//   // uint8_t i = 0;
+			//   // for (i = 0; i < num_samples; i++)
+			//   // {
+			//   // 	sprintf(outstr, "%d %d\r\n", REFtraj[i], SENtraj[i]);
+			//   //   BTSERIAL.write(outstr);
+			//   // }
+			//   // interrupts();
+			  
+			//   break;
+			// }
 
-				// go to target yaw and hold
-				case 'h':
-				{
-				  noInterrupts();
-				  delay(1000);
-				  unsigned short out_counter = 1;  // counter for when to print
-				  e_yaw_prev = 0;
-				  Eint = 0;
-				  control_sig = 0;
-				  BTSERIAL.println("Enter desired yaw change (deg):");
-				  BTserial_block();
-				  int yawChange = BTSERIAL.parseInt();
-				  yawNow = read_yaw();                   
-				  yawTarget = correct_yaw(yawNow + yawChange);          
-				  BTSERIAL.print("Current yaw: "); BTSERIAL.println(yawNow);
-				  BTSERIAL.print("Target yaw: "); BTSERIAL.println(yawTarget);
-				  set_mode(HOLD);
-				  BTSERIAL.println("You're in HOLD mode");
-				  delay(1000);
-				  interrupts();
-				  while (get_mode() == HOLD)
-				  {
-						out_counter = out_counter + 1;
-						if (out_counter % PRINTAFTER == 0)
-						{
-						  // BTSERIAL.print("Current yaw: "); BTSERIAL.println(yawNow);
-						  // BTSERIAL.print("Target yaw: "); BTSERIAL.println(yawTarget);
-						  BTSERIAL.println(Eint);
-						}
-				  }
-				  BTSERIAL.println("You're in IDLE mode");
-				  BTSERIAL.println();
-				  delay(1000);
-				  break;
-				}
+	  	// read and print sensor angles from Lighthouse
+	  	case 'l':
+	  	{
+	  		noInterrupts();
 
-				case 't':                      // Tune gains from disturbance response
-				{
-				  noInterrupts();
-				  delay(1000);
-				  unsigned short out_counter = 1;  // counter for when to print
-				  e_yaw_prev = 0;
-				  Eint = 0;
-				  control_sig = 0;
-				  yawNow = read_yaw();
-				  yawTarget = yawNow;                   
-				  set_mode(HOLD);
-				  BTSERIAL.println("You're in HOLD (tune) mode. Disturb and observe.");
-				  delay(1000);
-				  interrupts();
-				  while (get_mode() == HOLD)
-				  {
-						out_counter = out_counter + 1;
-						if (out_counter % PRINTAFTER == 0)
-						{
-						  // BTSERIAL.print("Current yaw: "); BTSERIAL.println(yawNow);
-						  // BTSERIAL.print("Target yaw: "); BTSERIAL.println(yawTarget);
-						  BTSERIAL.println(Eint);
-						}
-				  }
-				  BTSERIAL.println("You're in IDLE mode");
-				  delay(1000);
-				  break;
-				}
+	  		uint32_t time_now[] = {0, 0, 0};
+	  		uint32_t time_prev[] = {0, 0, 0};
+	  		uint32_t ts[] = {0, 0, 0};
+	  		uint32_t tl[] = {0, 0, 0};
+	  		bool state_now[] = {HIGH, HIGH, HIGH};
+	  		bool state_prev[] = {HIGH, HIGH, HIGH};
+	  		char pulse_type_now[] = {'?', '?', '?'};
+	  		char pulse_type_prev[] = {'?', '?', '?'};
+	  		bool flag[] = {false, false, false};		// flags go true when angles are collected
 
-				default:
-				{
-				  digitalWrite(LEDPIN, HIGH);  // turn on LED to indicate an error
-				  break;
-				}
-		  }
-		}
+	  		attachInterrupt(digitalPinToInterrupt(SIG[0]), isrA_lighthouse, CHANGE);
+	  		attachInterrupt(digitalPinToInterrupt(SIG[1]), isrB_lighthouse, CHANGE);
+	  		attachInterrupt(digitalPinToInterrupt(SIG[2]), isrC_lighthouse, CHANGE);
+
+	  		interrupts();
+
+	  		// compute a bunch of angles until enough are collected
+	  		while (!(flag[0] && flag[1] && flag[2]))
+	  		{
+	  			for (uint8_t i = 0; i < NUM_SENSORS; i++)
+	  			{
+	  				// update flag for this sensor
+	  				if ((bufs[i].getHcount() < ANGSLEN) || (bufs[i].getVcount() < ANGSLEN))
+	  				{
+	  					flag[i] = false;
+	  				}
+	  				else
+	  				{
+	  					flag[i] = true;
+	  				}
+
+	  				// wait until at least two data packets are in the queue
+	  				while (bufs[i].buffer_empty() || (bufs[i].get_storedTime(1) == 0)) {;}
+
+	  				time_now[i] = bufs[i].read_time();
+	  				state_now[i] = bufs[i].read_state();
+	  				bufs[i].incrementReadPos();
+
+	  				if ((state_now[i] == HIGH) && (state_prev[i] == LOW))	// valid pulse
+	  				{
+	  					uint32_t delta = time_now[i] - time_prev[i];
+	  					if (delta > 50)			// SYNC pulse
+	  					{
+	  						pulse_type_now[i] = 'S';
+	  						ts[i] = time_prev[i];
+
+	  						// reset other stuff
+	  						tl[i] = 0;
+	  					}
+	  					else if (delta > 18)	// HORIZONTAL LASER pulse
+	  					{
+	  						pulse_type_now[i] = 'H';
+	  						tl[i] = time_prev[i];
+	  						if (pulse_type_prev[i] == 'S')
+	  						{
+	  							float ang = (tl[i] - ts[i]) * deg_per_us;
+	  							bufs[i].insert_h_angle(ang, bufs[i].getHcount());
+	  							bufs[i].setHcount(bufs[i].getHcount() + 1);
+	  						}
+
+	  						// reset stuff
+	  						ts[i] = 0;
+	  						tl[i] = 0;
+	  					}
+	  					else if (delta > 8)		// VERTICAL LASER pulse
+	  					{
+	  						pulse_type_now[i] = 'V';
+	  						tl[i] = time_prev[i];
+	  						if (pulse_type_prev[i] == 'S')
+	  						{
+	  							float ang = (tl[i] - ts[i]) * deg_per_us;
+	  							bufs[i].insert_v_angle(ang, bufs[i].getVcount());
+	  							bufs[i].setVcount(bufs[i].getVcount() + 1);
+	  						}
+
+	  						// reset stuff
+	  						ts[i] = 0;
+	  						tl[i] = 0;
+	  					}
+	  					else					// meaningless pulse
+	  					{
+	  						pulse_type_now[i] = '?';
+	  						
+	  						// reset stuff
+	  						ts[i] = 0;
+	  						tl[i] = 0;
+	  					}
+	  				}
+
+	  				// update previous values
+	  				state_prev[i] = state_now[i];
+	  				time_prev[i] = time_now[i];
+	  				pulse_type_prev[i] = pulse_type_now[i];
+	  			}
+	  		}
+
+	  		detachInterrupt(digitalPinToInterrupt(SIG[0]));
+	  		detachInterrupt(digitalPinToInterrupt(SIG[1]));
+	  		detachInterrupt(digitalPinToInterrupt(SIG[2]));
+
+	  		// calculate averages
+	  		float Hsum = 0, Vsum = 0;
+	  		float h_av[NUM_SENSORS], v_av[NUM_SENSORS];
+
+	  		for (uint8_t sen = 0; sen < NUM_SENSORS; sen++)
+	  		{
+	  			for (uint8_t i = 0; i < ANGSLEN; i++)
+	  			{
+	  				Hsum = Hsum + bufs[sen].get_h_angle(i);
+	  				Vsum = Vsum + bufs[sen].get_v_angle(i);
+	  			}
+	  			h_av[sen] = (float) (Hsum / ANGSLEN);
+	  			v_av[sen] = (float) (Vsum / ANGSLEN);
+	  			Hsum = 0;
+	  			Vsum = 0;
+	  		}
+	  		
+	  		// send to MATLAB
+	  		char str[10];
+	  		for (uint8_t sen = 0; sen < NUM_SENSORS; sen++)
+	  		{
+	  			// send horizontal angle of sen 
+	  			dtostrf(h_av[sen], 4, 2, str);
+	  			BTSERIAL.write(str);
+	  			BTSERIAL.write("\r\n");
+
+	  			// send vertical angle of sen
+	  			dtostrf(v_av[sen], 4, 2, str);
+	  			BTSERIAL.write(str);
+	  			BTSERIAL.write("\r\n");
+	  		}
+	  		
+	  		break;
+	  	}
+
+			case 't':                      // Tune gains from disturbance response
+			{
+			  noInterrupts();
+			  delay(1000);
+			  e_yaw_prev = 0;
+			  Eint = 0;
+			  control_sig = 0;
+			  ang_target = read_yaw();                   
+			  set_mode(HOLD);
+			  delay(1000);
+			  interrupts();
+			  while (get_mode() == HOLD)
+			  {
+					;
+			  }
+			  delay(1000);
+			  break;
+			}
+
+			default:
+			{
+			  digitalWrite(LEDPIN, HIGH);  // turn on LED to indicate an error
+			  break;
+			}
+	  }
 	}
 }

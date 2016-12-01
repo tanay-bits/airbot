@@ -225,7 +225,6 @@ bool state_now[] = {HIGH, HIGH, HIGH};
 bool state_prev[] = {HIGH, HIGH, HIGH};
 char pulse_type_now[] = {'?', '?', '?'};
 char pulse_type_prev[] = {'?', '?', '?'};
-
 bool flag[] = {false, false, false};		// flags go true when angles are collected
 
 void loop() {
