@@ -10,7 +10,6 @@ function client()
 %       client('/dev/rfcomm0') (Linux - Bluetooth)
 %       client('COM3') (PC)
 %
-%   For convenience, you may want to change this so that the port is hardcoded.
    
 % Opening COM connection
 if ~isempty(instrfind)
