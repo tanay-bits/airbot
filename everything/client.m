@@ -173,14 +173,8 @@ while ~has_quit
             in = input('\nPress enter to go back to IDLE mode', 's');
             fprintf(mySerial, '%s', in);
         
-        % READ ANGLES: 
+        % READ ANGLES AND TRIANGULATE: 
         case 'l'                         
-            h0 = fscanf(mySerial);
-            fprintf('h0 = %s\n', h0);
-            
-            v0 = fscanf(mySerial);
-            fprintf('v0 = %s\n', v0);
-            
             h1 = fscanf(mySerial);
             fprintf('h1 = %s\n', h1);
             
@@ -189,9 +183,27 @@ while ~has_quit
             
             h2 = fscanf(mySerial);
             fprintf('h2 = %s\n', h2);
-                            
+            
             v2 = fscanf(mySerial);
             fprintf('v2 = %s\n', v2);
+            
+            h3 = fscanf(mySerial);
+            fprintf('h3 = %s\n', h3);
+                            
+            v3 = fscanf(mySerial);
+            fprintf('v3 = %s\n', v3);
+            
+            xy = triangulate(h1,h2,h3,v1,v2,v3,AB,BC,AC);
+            Ax = xy[1,1];
+            Ay = xy[2,1];
+            Bx = xy[1,2];
+            By = xy[2,2];
+            Cx = xy[1,3];
+            Cy = xy[2,3];
+            
+            fprintf('A: %d , %d\n', Ax,Ay);
+            fprintf('B: %d , %d\n', Bx,By);
+            fprintf('C: %d , %d\n', Cx,Cy);
             
         otherwise
             fprintf('Invalid Selection %c\n', selection);
