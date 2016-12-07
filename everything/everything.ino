@@ -259,7 +259,7 @@ void isrC_lighthouse() {
 
 void controller(void)
 {
-	static int ctr = 0;  // initialize counter once  
+	// static int ctr = 0;  // initialize counter once  
   int e_yaw, yawNow, yawTarget;
 
   switch (get_mode())
@@ -516,6 +516,11 @@ void setup() {
 
   pinMode(LEDPIN, OUTPUT);
   digitalWrite(LEDPIN, HIGH);  // turn on LED
+
+  for(int i = 0; i < NUM_SENSORS; i++) 
+	{
+		bufs[i].setID(i);
+	}
 
   interrupts();	//enable interrupts
   

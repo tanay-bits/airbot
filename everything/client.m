@@ -135,43 +135,43 @@ while ~has_quit
             in = input('Press enter to go back to IDLE mode', 's');
             fprintf(mySerial, '%s', in);
             
-        % LOAD STEP TRAJECTORY:
-        case 'x'                         
-            des_traj = input('\nEnter step trajectory, in sec and degrees [time1, ang1; time2, ang2; ...]: ');
-            step_traj = genRef(des_traj, 'step');
-            num_samples = size(step_traj, 2);
-            if num_samples > 450
-                fprintf('\nError: Maximum trajectory time is 10 seconds.\n'); 
-            end
-
-            fprintf(mySerial, '%d\n', num_samples);  
-            for i=1:num_samples
-                fprintf(mySerial, '%d\n',step_traj(i));
-            end
-            fprintf('Plotting the desired trajectory and sending to Teensy ... completed.\n')
-
-        % LOAD CUBIC TRAJECTORY:
-        case 'y'                         
-            des_traj = input('\nEnter cubic trajectory, in sec and degrees [time1, ang1; time2, ang2; ...]: ');
-            step_traj = genRef(des_traj, 'cubic');
-            num_samples = size(step_traj, 2);
-            if num_samples > 450
-                fprintf('\nError: Maximum trajectory time is 10 seconds.\n'); 
-            end
-
-            fprintf(mySerial, '%d\n', num_samples);  
-            for i=1:num_samples
-                fprintf(mySerial, '%d\n',step_traj(i));
-            end
-            fprintf('Plotting the desired trajectory and sending to Teensy ... completed.\n')
-
-        % EXECUTE TRAJECTORY AND PLOT:
-        case 'o'                         
-%             read_plot_matrix_pos(mySerial);
-            msg = fscanf(mySerial);
-            fprintf('%s\n', msg);
-            in = input('\nPress enter to go back to IDLE mode', 's');
-            fprintf(mySerial, '%s', in);
+%         % LOAD STEP TRAJECTORY:
+%         case 'x'                         
+%             des_traj = input('\nEnter step trajectory, in sec and degrees [time1, ang1; time2, ang2; ...]: ');
+%             step_traj = genRef(des_traj, 'step');
+%             num_samples = size(step_traj, 2);
+%             if num_samples > 450
+%                 fprintf('\nError: Maximum trajectory time is 10 seconds.\n'); 
+%             end
+% 
+%             fprintf(mySerial, '%d\n', num_samples);  
+%             for i=1:num_samples
+%                 fprintf(mySerial, '%d\n',step_traj(i));
+%             end
+%             fprintf('Plotting the desired trajectory and sending to Teensy ... completed.\n')
+% 
+%         % LOAD CUBIC TRAJECTORY:
+%         case 'y'                         
+%             des_traj = input('\nEnter cubic trajectory, in sec and degrees [time1, ang1; time2, ang2; ...]: ');
+%             step_traj = genRef(des_traj, 'cubic');
+%             num_samples = size(step_traj, 2);
+%             if num_samples > 450
+%                 fprintf('\nError: Maximum trajectory time is 10 seconds.\n'); 
+%             end
+% 
+%             fprintf(mySerial, '%d\n', num_samples);  
+%             for i=1:num_samples
+%                 fprintf(mySerial, '%d\n',step_traj(i));
+%             end
+%             fprintf('Plotting the desired trajectory and sending to Teensy ... completed.\n')
+% 
+%         % EXECUTE TRAJECTORY AND PLOT:
+%         case 'o'                         
+% %             read_plot_matrix_pos(mySerial);
+%             msg = fscanf(mySerial);
+%             fprintf('%s\n', msg);
+%             in = input('\nPress enter to go back to IDLE mode', 's');
+%             fprintf(mySerial, '%s', in);
         
         % READ ANGLES AND TRIANGULATE: 
         case 'l'                         
@@ -193,17 +193,25 @@ while ~has_quit
             v3 = fscanf(mySerial);
             fprintf('v3 = %s\n', v3);
             
-            xy = triangulate(h1,h2,h3,v1,v2,v3,AB,BC,AC);
-            Ax = xy[1,1];
-            Ay = xy[2,1];
-            Bx = xy[1,2];
-            By = xy[2,2];
-            Cx = xy[1,3];
-            Cy = xy[2,3];
-            
-            fprintf('A: %d , %d\n', Ax,Ay);
-            fprintf('B: %d , %d\n', Bx,By);
-            fprintf('C: %d , %d\n', Cx,Cy);
+%             AB = 0.05;
+%             BC = 0.0381;
+%             AC = AB + BC;
+%             pos = triangulate(h1,h2,h3,v1,v2,v3,AB,BC,AC);
+%             Ax = pos(1,1);
+%             Ay = pos(2,1);
+%             Az = pos(3,1);
+%             
+%             Bx = pos(1,2);
+%             By = pos(2,2);
+%             Bz = pos(3,2);
+%             
+%             Cx = pos(1,3);
+%             Cy = pos(2,3);
+%             Cz = pos(3,3);
+%             
+%             fprintf('A: %d , %d, %d\n', Ax,Ay,Az);
+%             fprintf('B: %d , %d, %d\n', Bx,By,Bz);
+%             fprintf('C: %d , %d, %d\n', Cx,Cy,Cz);
             
         otherwise
             fprintf('Invalid Selection %c\n', selection);

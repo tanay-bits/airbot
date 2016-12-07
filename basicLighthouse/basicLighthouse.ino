@@ -197,7 +197,7 @@ void setup() {
 	 
 	for(uint8_t i = 0; i < NUM_SENSORS; i++) 
 	{
-		bufs[i].setX(i);
+		bufs[i].setID(i);
 	}
 
 	attachInterrupt(digitalPinToInterrupt(SIG[0]), isrA_lighthouse, CHANGE);
