@@ -6,7 +6,8 @@
 #define NUM_SENSORS 3
 #define BUFLEN 256
 
-const int PRINTAFTER = 50000;
+const unsigned int PRINTYAW = 200000;
+const unsigned int PRINTVIVE = 5000000;
 const int MAX_SPEED = 160;    // max ESC write value
 const int CONTROL_PERIOD_MS = 22;
 const uint8_t SIG[] = {4, 5, 6};
@@ -387,26 +388,6 @@ void loop() {
 		pulse_type_prev[i] = pulse_type_now[i];
 	}
 
-	// // print for debugging
-	// if (++ctr % PRINTAFTER == 0)
-	// {
-	//   Serial2.print("H angles: ");
-	//   for (byte j = 0; j < NUM_SENSORS; j++)
-	//   {
-	//     Serial2.print(bufs[j].get_h_angle());
-	//     Serial2.print(" ");
-	//   }
-	//   Serial2.println();
-	//   Serial2.print("V angles: ");
-	//   for (uint8_t j = 0; j < NUM_SENSORS; j++)
-	//   {
-	//     Serial2.print(bufs[j].get_v_angle());
-	//     Serial2.print(" ");
-	//   }
-	//   Serial2.println();
-	//   Serial2.println();
-	// }
-
 	// Wait for user to send something to indicate the connection is ready
 	if (!startup)
 	{
@@ -552,7 +533,7 @@ void loop() {
 				{
 					noInterrupts();
 					delay(1000);
-					unsigned short out_counter = 1;  // counter for when to print
+					unsigned int out_counter = 1;  // counter for when to print
 					set_mode(READ);
 					BTSERIAL.println("You're in READ mode");
 					delay(1000);
@@ -560,8 +541,8 @@ void loop() {
 					interrupts();
 					while (get_mode() == READ)
 					{
-						out_counter = out_counter + 1;
-						if (out_counter % PRINTAFTER == 0)
+						if (out_counter > PRINTYAW) {out_counter = 1;}
+						if (++out_counter % PRINTYAW == 0)
 						{
 							BTSERIAL.print("Current yaw: "); BTSERIAL.println(yawNow);
 						}
@@ -600,7 +581,7 @@ void loop() {
 				{
 					noInterrupts();
 					delay(1000);
-					unsigned short out_counter = 1;  // counter for when to print
+					unsigned int out_counter = 1;  // counter for when to print
 					e_yaw_prev = 0;
 					Eint = 0;
 					control_sig = 0;
@@ -615,8 +596,8 @@ void loop() {
 					interrupts();
 					while (get_mode() == HOLD)
 					{
-						out_counter = out_counter + 1;
-						if (out_counter % PRINTAFTER == 0)
+						if (out_counter > PRINTYAW) {out_counter = 1;}
+						if (++out_counter % PRINTYAW == 0)
 						{
 							// BTSERIAL.print("Current yaw: "); BTSERIAL.println(yawNow);
 							// BTSERIAL.print("Target yaw: "); BTSERIAL.println(yawTarget);
@@ -635,7 +616,7 @@ void loop() {
 				{
 					noInterrupts();
 					delay(1000);
-					unsigned short out_counter = 1;  // counter for when to print
+					unsigned int out_counter = 1;  // counter for when to print
 					set_mode(VIVE);
 					BTSERIAL.println("You're in VIVE mode");
 					delay(1000);
@@ -643,7 +624,8 @@ void loop() {
 					interrupts();
 					while (get_mode() == VIVE)
 					{
-						if (++out_counter % PRINTAFTER == 0)
+						if (out_counter > PRINTVIVE) {out_counter = 1;}
+						if (++out_counter % PRINTVIVE == 0)
 						{
 							BTSERIAL.print("H angles: ");
 							for (uint8_t j = 0; j < NUM_SENSORS; j++)
