@@ -7,7 +7,7 @@ h2 = 102.0;
 h3 = 103.0;
 
 v1 = 65.0;
-v2 = 66.0;
+v2 = 65.4;
 v3 = 67.0;
 
 h1 = deg2rad(h1);
@@ -23,12 +23,13 @@ cBC = sin(v2)*cos(h2)*sin(v3)*cos(h3) + sin(v2)*sin(h2)*sin(v3)*sin(h3) + cos(v2
 cAC = sin(v1)*cos(h1)*sin(v3)*cos(h3) + sin(v1)*sin(h1)*sin(v3)*sin(h3) + cos(v1)*cos(v3);
 
 fun = @(x) rangeEqs(x, cAB, cBC, cAC, AB, BC, AC);
-x0 = [50; 51; 52];
+x0 = [150.0; 152.0; 154.0];
 
-options = optimoptions(@fsolve,'Display','iter','SpecifyObjectiveGradient',true,'MaxIterations',1000);
-% options = optimoptions(@fsolve,'SpecifyObjectiveGradient',true,'MaxIterations',5000,'MaxFunctionEvaluations',5000);
+% options = optimoptions(@fsolve,'Display','iter','SpecifyObjectiveGradient',true,'MaxIterations',1000);
+% options = optimoptions(@fmincon,'SpecifyObjectiveGradient',true,'MaxIterations',5000,'MaxFunctionEvaluations',5000);
+options = optimoptions(@fsolve,'SpecifyObjectiveGradient',true,'MaxIterations',5000,'MaxFunctionEvaluations',5000);
 % options.Algorithm = 'levenberg-marquardt';
 % options.FunctionTolerance = 1e-7;
 
-[x,F,exitflag,output,JAC] = fsolve(fun, x0, options);
-% x = fsolve(fun, x0, options);
+% [x,F,exitflag,output,JAC] = fsolve(fun, x0, options);
+x = fsolve(fun, x0, options);
