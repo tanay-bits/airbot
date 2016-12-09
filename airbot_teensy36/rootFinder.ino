@@ -1,4 +1,12 @@
-/* This file is part of the AirBot firmware */
+/************************************************************
+ This file is part of the AirBot firmware.
+ Project repository: https://github.com/tanay-bits/airbot
+ Written by Tanay Choudhary	(https://tanay-bits.github.io/).
+ ************************************************************/
+
+/*
+FIND RANGE (VECTOR MAGNITUDE) OF EACH LIGHTHOUSE SENSOR FROM BASE STATION
+*/
 
 #include <math.h>
 #include <stdlib.h>

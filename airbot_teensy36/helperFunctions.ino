@@ -1,8 +1,12 @@
-/* This file is part of the AirBot firmware */
+/************************************************************
+ This file is part of the AirBot firmware.
+ Project repository: https://github.com/tanay-bits/airbot
+ Written by Tanay Choudhary	(https://tanay-bits.github.io/).
+ ************************************************************/
 
-//////////////////////
-// HELPER FUNCTIONS //
-//////////////////////
+/*
+HELPER FUNCTIONS
+*/
 
 // updates lighthouse angles
 void read_lighthouse(void) {

@@ -1,4 +1,14 @@
-/* This file is part of the AirBot firmware */
+/************************************************************
+ This file is part of the AirBot firmware.
+ Project repository: https://github.com/tanay-bits/airbot
+ Written by Tanay Choudhary	(https://tanay-bits.github.io/).
+ ************************************************************/
+
+//////////////////////////////////////////////////////////////////////////////////////////////////////
+
+/*
+IMPORTS, CONSTANTS, GLOBALS
+*/
 
 #include <Servo.h>
 
@@ -35,6 +45,8 @@ volatile int Eint = 0;                             // integral (sum) of control 
 volatile int EINT_CAP = 50000;                     // execute slow retraction if Eint >= EINT_CAP
 volatile int vals[2] = {0, 0};                     // w0 and w1 (motor speeds)
 
+
+// Lighthouse calculation parameters
 uint32_t time_now[] = {0, 0, 0};
 uint32_t time_prev[] = {0, 0, 0};
 uint32_t ts[] = {0, 0, 0};
@@ -43,7 +55,6 @@ bool state_now[] = {HIGH, HIGH, HIGH};
 bool state_prev[] = {HIGH, HIGH, HIGH};
 char pulse_type_now[] = {'?', '?', '?'};
 char pulse_type_prev[] = {'?', '?', '?'};
-
 const float AB = 2;
 const float BC = 2;
 const float AC = 4;
@@ -51,6 +62,10 @@ float cAB, cBC, cAC;
 float sA[3], sB[3], sC[3];
 
 //////////////////////////////////////////////////////////////////////////////////////////////////////
+
+/*
+CIRCULAR BUFFER CLASS FOR STORING LIGHTHOUSE DATA
+*/
 
 class RingBuf
 {
@@ -181,7 +196,15 @@ uint32_t RingBuf::get_storedTime(unsigned short ndx) volatile
   return timeStamps[ndx];
 }
 
+/*
+CREATE AN ARRAY OF BUFFERS, ONE FOR EACH SENSOR
+*/
+
 volatile RingBuf bufs[NUM_SENSORS];
+
+/*
+ISR FOR EACH SENSOR
+*/
 
 void isrA_lighthouse() {
   uint32_t time_val = micros();
@@ -220,6 +243,10 @@ void isrC_lighthouse() {
 }
 
 //////////////////////////////////////////////////////////////////////////////////////////////////////
+
+/*
+ISR FOR ROBOT CONTROL
+*/
 
 void controller(void)
 {
@@ -286,6 +313,10 @@ void controller(void)
 }
 
 //////////////////////////////////////////////////////////////////////////////////////////////////////
+
+/*
+SETUP AND MAIN LOOP
+*/
 
 void setup() {
 	delay(3000);  	// give enough time for Razor to auto-reset
