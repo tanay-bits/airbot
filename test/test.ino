@@ -40,7 +40,13 @@ uint32_t tl[] = {0, 0, 0};
 bool state_now[] = {HIGH, HIGH, HIGH};
 bool state_prev[] = {HIGH, HIGH, HIGH};
 char pulse_type_now[] = {'?', '?', '?'};
-char pulse_type_prev[] = {'?', '?', '?'}; 
+char pulse_type_prev[] = {'?', '?', '?'};
+
+const float AB = 2;
+const float BC = 2;
+const float AC = 4;
+float cAB, cBC, cAC;
+float sA[3], sB[3], sC[3];
 
 //////////////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -576,6 +582,64 @@ void loop() {
 								BTSERIAL.print(bufs[j].get_v_angle());
 								BTSERIAL.print(" ");
 							}
+							BTSERIAL.println();
+							BTSERIAL.println();
+						}
+					}
+					BTSERIAL.println("You're in IDLE mode");
+					BTSERIAL.println();
+					delay(1000);
+					break;
+				}
+
+				// triangulate XYZ of each sensor from Lighthouse
+				case 'x':
+				{
+					noInterrupts();
+					delay(1000);
+					unsigned int out_counter = 1;  // counter for when to print
+					set_mode(VIVE);
+					BTSERIAL.println("You're in VIVE mode");
+					delay(1000);
+					BTserial_clear();
+					interrupts();
+					while (get_mode() == VIVE)
+					{
+						if (out_counter > PRINTVIVE) {out_counter = 1;}
+						if (++out_counter % PRINTVIVE == 0)
+						{
+							float h1 = bufs[0].get_h_angle();
+							float v1 = bufs[0].get_v_angle();
+							
+							float h2 = bufs[1].get_h_angle();
+							float v2 = bufs[1].get_v_angle();
+							
+							float h3 = bufs[2].get_h_angle();
+							float v3 = bufs[2].get_v_angle();
+							
+							triangulate(sA,sB,sC,h1,v1,h2,v2,h3,v3);
+
+							BTSERIAL.print("A: ");
+							BTSERIAL.print(sA[0]);
+							BTSERIAL.print(" ");
+							BTSERIAL.print(sA[1]);
+							BTSERIAL.print(" ");
+							BTSERIAL.println(sA[2]);
+							
+							BTSERIAL.print("B: ");
+							BTSERIAL.print(sB[0]);
+							BTSERIAL.print(" ");
+							BTSERIAL.print(sB[1]);
+							BTSERIAL.print(" ");
+							BTSERIAL.println(sB[2]);
+
+							BTSERIAL.print("C: ");
+							BTSERIAL.print(sC[0]);
+							BTSERIAL.print(" ");
+							BTSERIAL.print(sC[1]);
+							BTSERIAL.print(" ");
+							BTSERIAL.println(sC[2]);
+
 							BTSERIAL.println();
 							BTSERIAL.println();
 						}

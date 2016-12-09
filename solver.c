@@ -125,9 +125,24 @@ int main() {
 
 	newtonOpt(x0, iter, eqsVec, jacMat);
 
-	printf("%f %f %f\n", x0[0], x0[1], x0[2]);
-	printf("%f %f %f\n", eqsVec[0], eqsVec[1], eqsVec[2]);
-	printf("%d\n", *iter);
+	float Xa = x0[0] * sin(v1) * cos(h1);
+	float Ya = x0[0] * sin(v1) * sin(h1);
+	float Za = x0[0] * cos(v1);
+
+	float Xb = x0[1] * sin(v2) * cos(h2);
+	float Yb = x0[1] * sin(v2) * sin(h2);
+	float Zb = x0[1] * cos(v2);
+
+	float Xc = x0[2] * sin(v3) * cos(h3);
+	float Yc = x0[2] * sin(v3) * sin(h3);
+	float Zc = x0[2] * cos(v3);
+
+	printf("Ranges: %f %f %f\n", x0[0], x0[1], x0[2]);
+	printf("F vals: %f %f %f\n", eqsVec[0], eqsVec[1], eqsVec[2]);
+	printf("Iterations: %d\n\n", *iter);
+	printf("A: %f %f %f\n", Xa, Ya, Za);
+	printf("B: %f %f %f\n", Xb, Yb, Zb);
+	printf("C: %f %f %f\n", Xc, Yc, Zc);
 
 	return 0;
 }

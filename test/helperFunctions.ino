@@ -8,7 +8,7 @@
 void read_lighthouse(void) {
 	for (uint8_t i = 0; i < NUM_SENSORS; i++)
 	{
-		while (bufs[i].buffer_empty()) {;}
+		while (bufs[i].buffer_empty() || (bufs[i].get_storedTime(1) == 0)) {;}
 		time_now[i] = bufs[i].read_time();
 		state_now[i] = bufs[i].read_state();
 		bufs[i].incrementReadPos();
@@ -67,6 +67,48 @@ void read_lighthouse(void) {
 		time_prev[i] = time_now[i];
 		pulse_type_prev[i] = pulse_type_now[i];
 	}
+}
+
+// triangulate XYZ position of each sensor
+void triangulate(float sA[3],float sB[3],float sC[3],float h1,float v1,float h2,float v2,float h3,float v3) {
+	h1 = h1 * M_PI/180.0;
+	v1 = v1 * M_PI/180.0;
+
+	h2 = h2 * M_PI/180.0;
+	v2 = v2 * M_PI/180.0;
+
+	h3 = h3 * M_PI/180.0;
+	v3 = v3 * M_PI/180.0;
+
+	float eqsVec[3];
+
+	float **jacMat=(float**)malloc(3*(sizeof(float*)));
+	int i;
+	for(i=0;i<3;i++)
+		*(jacMat+i)=(float*)malloc(sizeof(float)*3);
+
+	cAB = sin(v1)*cos(h1)*sin(v2)*cos(h2) + sin(v1)*sin(h1)*sin(v2)*sin(h2) + cos(v1)*cos(v2);
+	cBC = sin(v2)*cos(h2)*sin(v3)*cos(h3) + sin(v2)*sin(h2)*sin(v3)*sin(h3) + cos(v2)*cos(v3);
+	cAC = sin(v1)*cos(h1)*sin(v3)*cos(h3) + sin(v1)*sin(h1)*sin(v3)*sin(h3) + cos(v1)*cos(v3);
+
+	float x0[3] = {50, 51, 52};		// initial guess
+	int* iter;
+	int ival = 50000;
+	iter = &ival;
+
+	newtonOpt(x0, iter, eqsVec, jacMat);
+
+	sA[0] = x0[0] * sin(v1) * cos(h1);
+	sA[1] = x0[0] * sin(v1) * sin(h1);
+	sA[2] = x0[0] * cos(v1);
+
+	sB[0] = x0[1] * sin(v2) * cos(h2);
+	sB[1] = x0[1] * sin(v2) * sin(h2);
+	sB[2] = x0[1] * cos(v2);
+
+	sC[0] = x0[2] * sin(v3) * cos(h3);
+	sC[1] = x0[2] * sin(v3) * sin(h3);
+	sC[2] = x0[2] * cos(v3);
 }
 
 // maps yaw to (0:360) system
