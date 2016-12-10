@@ -25,6 +25,12 @@ const int CONTROL_PERIOD_MS = 22;
 const uint8_t SIG[] = {4, 5, 6};
 const float deg_per_us = 0.0216;	// (180 deg) / (8333 us)
 
+const int CONTROL_FREQ = 45;  	// approximate control frequency (Hz)
+uint8_t ind = 0;	 			// index of integer array where time or ang data is stored
+volatile int REFtraj[500];     	// stores reference trajectory
+volatile int ctr = 0;          	// counter to step through REFtraj array
+volatile int refSize;          	// useful length of REFtraj array
+
 bool startup = false;
 union u_tag {
   byte b_angle[4];
@@ -290,9 +296,29 @@ void controller(void)
 			break;
 		}
 
-		case TRACK:		// TODO
+		case TRACK:	
 		{
-		  break;
+			yawNow = read_yaw();
+			ang_target = REFtraj[ctr];
+			yawTarget = ang_target;
+			e_yaw = calc_error(yawTarget - yawNow);
+			Eint = Eint + e_yaw;
+			
+			// calculate control signal and send to actuator, if error outside deadband
+			calc_send_control(e_yaw);
+			
+			// update previous error for derivative calculation
+			e_yaw_prev = e_yaw;
+			  
+			ctr++;
+			if (ctr == refSize)
+			{
+			    yawTarget = REFtraj[refSize-1];  // set last ref as target for HOLD
+			    ctr = 0;  // reset counter
+			    set_mode(HOLD);
+			}
+
+		  	break;
 		}
 
 		case VIVE:
@@ -582,6 +608,80 @@ void loop() {
 					}
 					BTSERIAL.println("You're in IDLE mode");
 					BTSERIAL.println();
+					delay(1000);
+					break;
+				}
+
+				case 'f':                      // Follow reference trajectory
+				{
+					noInterrupts();
+					delay(1000);
+					
+					// reset PID parameters
+					e_yaw_prev = 0;
+					Eint = 0;
+					control_sig = 0;
+				  
+					// take reference trajectory from user
+					int refTimes[3], refAngs[3];
+					refTimes[0] = 0;
+					BTSERIAL.println("Time 1 is 0. Enter time 2:");
+					BTserial_block();
+					refTimes[1] = BTSERIAL.parseInt();
+					BTSERIAL.println("Enter time 3:");
+					BTserial_block();
+					refTimes[2] = BTSERIAL.parseInt();
+					BTSERIAL.println("Target times:");
+					for (byte i = 0; i < 3; i++)
+					{
+					    BTSERIAL.println(refTimes[i]);
+					}
+					BTSERIAL.println("Enter angle 1:");
+					BTserial_block();
+					refAngs[0] = BTSERIAL.parseInt();
+					BTSERIAL.println("Enter angle 2:");
+					BTserial_block();
+					refAngs[1] = BTSERIAL.parseInt();
+					BTSERIAL.println("Enter angle 3:");
+					BTserial_block();
+					refAngs[2] = BTSERIAL.parseInt();
+					BTSERIAL.println("Target angles:");
+					for (byte i = 0; i < 3; i++)
+					{
+					    BTSERIAL.println(refAngs[i]);
+					}
+					BTSERIAL.println();
+					
+					// create array of reference angles indexed by sample number
+					genRef(REFtraj, refTimes, refAngs);
+				
+					// track, then hold:
+					set_mode(TRACK);
+					BTSERIAL.println("You're in TRACK mode");
+					unsigned int out_counter = 1;  // counter for when to print
+					delay(1000);
+					interrupts();
+					while (get_mode() == TRACK)
+					{
+					    if (++out_counter % PRINTYAW == 0)
+					    {
+					        BTSERIAL.print("Current: "); BTSERIAL.print(yawNow);
+					        BTSERIAL.print(" ");
+					        BTSERIAL.print("Target: "); BTSERIAL.println(ang_target);
+					    }
+					}
+					         
+					out_counter = 1;
+					while (get_mode() == HOLD)
+					{
+					    if (++out_counter % PRINTYAW == 0)
+					    {
+					        BTSERIAL.print("Current: "); BTSERIAL.print(yawNow);
+					        BTSERIAL.print(" ");
+					        BTSERIAL.print("Target: "); BTSERIAL.println(ang_target);
+					    }
+					}
+					BTSERIAL.println("You're in IDLE mode");
 					delay(1000);
 					break;
 				}

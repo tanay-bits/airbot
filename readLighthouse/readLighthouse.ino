@@ -288,13 +288,14 @@ void loop() {
 			Serial.print(bufs[j].get_h_angle());
 			Serial.print(" ");
 		}
-		Serial.print("\nV angles: ");
+    Serial.println();
+		Serial.print("V angles: ");
 		for (uint8_t j = 0; j < NUM_SENSORS; j++)
 		{
 			Serial.print(bufs[j].get_v_angle());
 			Serial.print(" ");
 		}
-		Serial.print("\n");
-		Serial.print("\n");
+		Serial.println();
+		Serial.println();
 	}
 }

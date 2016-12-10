@@ -70,7 +70,7 @@ void read_lighthouse(void) {
 }
 
 // triangulate XYZ position of each sensor
-void triangulate(float sA[3],float sB[3],float sC[3],float h1,float v1,float h2,float v2,float h3,float v3) {
+void triangulate(float x0[3],float eqsVec[3],float sA[3],float sB[3],float sC[3],float h1,float v1,float h2,float v2,float h3,float v3) {
 	h1 = h1 * M_PI/180.0;
 	v1 = v1 * M_PI/180.0;
 
@@ -80,7 +80,7 @@ void triangulate(float sA[3],float sB[3],float sC[3],float h1,float v1,float h2,
 	h3 = h3 * M_PI/180.0;
 	v3 = v3 * M_PI/180.0;
 
-	float eqsVec[3];
+	
 
 	float **jacMat=(float**)malloc(3*(sizeof(float*)));
 	int i;
@@ -91,7 +91,7 @@ void triangulate(float sA[3],float sB[3],float sC[3],float h1,float v1,float h2,
 	cBC = sin(v2)*cos(h2)*sin(v3)*cos(h3) + sin(v2)*sin(h2)*sin(v3)*sin(h3) + cos(v2)*cos(v3);
 	cAC = sin(v1)*cos(h1)*sin(v3)*cos(h3) + sin(v1)*sin(h1)*sin(v3)*sin(h3) + cos(v1)*cos(v3);
 
-	float x0[3] = {50, 51, 52};		// initial guess
+	
 	int* iter;
 	int ival = 50000;
 	iter = &ival;
@@ -259,20 +259,20 @@ Mode_datatype get_mode(void) {
 //   return true;
 // }
 
-// // Generate trajectory array to follow
-// void genRef(volatile int *ref, int *times, int *angs) {
-//   int sample_list[3];
+// Generate trajectory array to follow
+void genRef(volatile int *ref, int *times, int *angs) {
+  int sample_list[3];
 
-//   for (int i = 0; i < 3; i++)
-//   {
-// 	sample_list[i] = (int)(times[i] * CONTROL_FREQ);
-//   }
+  for (int i = 0; i < 3; i++)
+  {
+	sample_list[i] = (int)(times[i] * CONTROL_FREQ);
+  }
 
-//   refSize = sample_list[2]; // last element of sample_list (global)
-//   int j = 1;
-//   for (int i = 0; i < refSize; i++)
-//   {
-//    if (i == sample_list[j] - 1) {j++;}
-//    ref[i] = angs[j-1];  
-//   }
-// }
+  refSize = sample_list[2]; // last element of sample_list (global)
+  int j = 1;
+  for (int i = 0; i < refSize; i++)
+  {
+   if (i == sample_list[j] - 1) {j++;}
+   ref[i] = angs[j-1];  
+  }
+}

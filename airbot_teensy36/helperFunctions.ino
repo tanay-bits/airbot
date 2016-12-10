@@ -248,35 +248,35 @@ Mode_datatype get_mode(void) {
   return mode;
 }
 
-// // Only needed if continuous output streaming is on
-// bool readToken(char* token) {
-//   IMUserial_clear(); // Clear input buffer
+// Only needed if continuous output streaming is on
+bool readToken(char* token) {
+  IMUserial_clear(); // Clear input buffer
   
-//   IMUSERIAL.write("#s00"); // Request synch token
-//   delay(500);
-//   // Check if incoming bytes match token
-//   for (unsigned int i = 0; i < (sizeof(token) - (unsigned)1); i++)
-// 	{
-// 	  if (IMUSERIAL.read() != token[i])
-// 		return false;
-// 	}
-//   return true;
-// }
+  IMUSERIAL.write("#s00"); // Request synch token
+  delay(500);
+  // Check if incoming bytes match token
+  for (unsigned int i = 0; i < (sizeof(token) - (unsigned)1); i++)
+	{
+	  if (IMUSERIAL.read() != token[i])
+		return false;
+	}
+  return true;
+}
 
-// // Generate trajectory array to follow
-// void genRef(volatile int *ref, int *times, int *angs) {
-//   int sample_list[3];
+// Generate trajectory array to follow
+void genRef(volatile int *ref, int *times, int *angs) {
+  int sample_list[3];
 
-//   for (int i = 0; i < 3; i++)
-//   {
-// 	sample_list[i] = (int)(times[i] * CONTROL_FREQ);
-//   }
+  for (int i = 0; i < 3; i++)
+  {
+	sample_list[i] = (int)(times[i] * CONTROL_FREQ);
+  }
 
-//   refSize = sample_list[2]; // last element of sample_list (global)
-//   int j = 1;
-//   for (int i = 0; i < refSize; i++)
-//   {
-//    if (i == sample_list[j] - 1) {j++;}
-//    ref[i] = angs[j-1];  
-//   }
-// }
+  refSize = sample_list[2]; // last element of sample_list (global)
+  int j = 1;
+  for (int i = 0; i < refSize; i++)
+  {
+   if (i == sample_list[j] - 1) {j++;}
+   ref[i] = angs[j-1];  
+  }
+}
